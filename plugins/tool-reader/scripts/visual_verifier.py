@@ -590,9 +590,10 @@ Please use the Read tool to view this image file, then answer the following:
         prompt_file = Path(tempfile.gettempdir()) / "tool-reader-prompt.txt"
         prompt_file.write_text(full_prompt, encoding='utf-8')
 
-        # Call Claude with the prompt file content piped in
+        # Call Claude with Sonnet model for image verification
+        # Using Sonnet for all picture verifications as required
         result = subprocess.run(
-            ["claude", "-p", full_prompt, "--output-format", "text"],
+            ["claude", "-p", full_prompt, "--output-format", "text", "--model", "sonnet"],
             capture_output=True,
             text=True,
             timeout=120,  # 2 minute timeout

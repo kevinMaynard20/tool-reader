@@ -1,33 +1,50 @@
 # /run-tool
 
-Execute a task definition from `.claude/<name>.md` with optional visual verification.
+Execute a task definition from `.claude/<name>.md` with optional capture and verification.
 
 ## Usage
 
-```
+```bash
 /run-tool <name>
-/run-tool <name> --verify        # Verify completion with screenshots
-/run-tool <name> --verify-each   # Verify after each item
+/run-tool <name> --verify
+/run-tool <name> --capture
+/run-tool <name> --capture-on <events>
+/run-tool <name> --adapter <type>
 ```
 
-Examples:
-```
+## Parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `name` | Yes | Task file name in .claude/ directory |
+| `--verify` | No | Verify completion after running |
+| `--verify-each` | No | Verify after each item |
+| `--capture` | No | Capture state during execution |
+| `--capture-on` | No | Events to capture on (click, navigate, etc.) |
+| `--adapter` | No | Specific adapter to use |
+| `--batch` | No | Batch verify captures after completion |
+
+## Examples
+
+```bash
+# Basic execution
 /run-tool PLUGIN_TASK
-/run-tool auth-task --verify
-/run-tool deploy --verify-each
+
+# Run and verify at end
+/run-tool webapp-task --verify
+
+# Run with capture enabled
+/run-tool user-flow --capture
+
+# Capture on specific events
+/run-tool user-flow --capture-on click,navigate,input
+
+# Use specific adapter
+/run-tool webapp-task --adapter playwright
+
+# Run, capture, and batch verify
+/run-tool user-flow --capture --batch
 ```
-
-## What It Does
-
-1. Reads `.claude/<name>.md` (or `.claude/<name>` if already includes extension)
-2. Parses the task file for checklist items
-3. Detects app type (`[webapp]`, `[gui]`, `[tui]`) for visual verification
-4. Identifies uncompleted items (`[ ]`)
-5. Executes each item sequentially
-6. **Captures invisible screenshots** (no window shown, no focus steal)
-7. **Verifies with Claude CLI** before marking complete
-8. Marks items as `[x]` only when verified
-9. Reports progress after each item
 
 ## Execution Flow
 
@@ -53,145 +70,148 @@ Executing remaining items:
 Task completed: 25/25 items done
 ```
 
-### With Visual Verification (--verify)
+### With Capture (--capture)
+```
+> /run-tool user-flow --capture
+
+Reading task: .claude/user-flow.md
+Found 10 items (5 completed, 5 remaining)
+Target: [webapp]: http://localhost:3000
+Adapter: playwright
+
+Executing with capture enabled:
+
+[6/10] Login page renders
+  - Capturing initial state...
+  - Done! (capture_001.png)
+
+[7/10] Fill login form
+  - Working...
+  - Capturing after input...
+  - Done! (capture_002.png)
+
+...
+
+Captures saved: 5 files in .tool-reader/captures/
+Run: /verify-batch .tool-reader/captures/ to verify all
+```
+
+### With Verify (--verify)
 ```
 > /run-tool webapp-task --verify
 
 Reading task: .claude/webapp-task.md
 Found 10 items (5 completed, 5 remaining)
-Detected: [webapp] http://localhost:3000
+Target: [webapp]: http://localhost:3000
+Adapter: playwright
 
-Executing remaining items:
+Executing remaining items...
 
-[6/10] Login page renders correctly
-  - Working...
-  - Done!
-
-[7/10] Form validation works
-  - Working...
-  - Done!
-
-Running visual verification (invisible capture)...
-  - Launching headless browser...
-  - Capturing screenshot (user sees nothing)...
+Running visual verification...
+  - Capturing with playwright adapter...
   - Sending to Claude CLI...
 
 Verification Results:
-  ✓ Login page renders correctly - Form visible
-  ✓ Form validation works - Error messages present
-  ✗ Dashboard loads - Still on login page
+  PASSED: Login page renders correctly
+  PASSED: Form validation works
+  FAILED: Dashboard loads - Still on login page
 
 Verified: 2/3 items
-Screenshot: /tmp/tool-reader/webapp-task_1234567890.png
+Capture: .tool-reader/captures/webapp-task_123.png
 ```
 
-### Verify Each Item (--verify-each)
+### Capture and Batch Verify (--capture --batch)
 ```
-> /run-tool webapp-task --verify-each
+> /run-tool user-flow --capture --batch
 
-Reading task: .claude/webapp-task.md
-Found 5 items (2 completed, 3 remaining)
-Detected: [webapp] http://localhost:3000
+Reading task: .claude/user-flow.md
+Executing with capture and batch verification...
 
-[3/5] Login page renders correctly
-  - Working...
-  - Capturing invisible screenshot...
-  - Verifying with Claude...
-  - ✓ Verified complete
+[Execution output...]
 
-[4/5] Dashboard loads after login
-  - Working...
-  - Capturing invisible screenshot...
-  - Verifying with Claude...
-  - ✗ Not verified - still on login page
+Captures: 8 files saved
 
-Stopped at item 4/5 - verification failed
-Screenshot: /tmp/tool-reader/webapp-task_1234567891.png
+Running batch verification...
+
+BATCH VERIFICATION: 8 captures
+  PASSED: 7/8
+  FAILED: 1/8
+
+Issues:
+  - Capture 5: Submit button not visible
 ```
 
-## Task Item Format
+## Adapter Selection
 
-The plugin recognizes these checklist formats:
+| Target Marker | Default Adapter |
+|---------------|-----------------|
+| `[webapp]:` | playwright/browser |
+| `[tui]:` | tui |
+| `[gui]:` | gui |
+| `[cli]:` | cli |
+| None | auto-detect |
+
+Override with `--adapter`:
+```bash
+/run-tool task --adapter playwright
+/run-tool task --adapter tui
+/run-tool task --adapter cli
+```
+
+## Capture Events
+
+With `--capture-on`, specify when to capture:
+
+```bash
+# Capture on clicks and navigation
+/run-tool task --capture-on click,navigate
+
+# Capture on all inputs
+/run-tool task --capture-on input
+
+# Capture on specific selector
+/run-tool task --capture-on "click:#submit-btn"
+```
+
+Available events:
+- `click` - After clicking elements
+- `navigate` - After page navigation
+- `input` - After form input
+- `wait` - After waits
+- `all` - All events
+
+## Task File Format
 
 ```markdown
-- [ ] Uncompleted item
-- [x] Completed item
-* [ ] Also works with asterisks
-* [x] Completed with asterisk
+# My Task
 
-| # | Task | Done |
-|---|------|------|
-| 1 | Task name | [ ] |
-| 2 | Another task | [x] |
-```
-
-## Behavior
-
-- **Sequential Execution**: Items are executed in order
-- **Auto-Update**: The `.md` file is updated as items complete
-- **Error Handling**: If an item fails, execution stops and status is reported
-- **Resumable**: Run the command again to continue from where you left off
-
-## App Type Detection
-
-Add markers to your task file to enable visual verification:
-
-```markdown
-# For web applications (uses headless Chrome/Edge)
+## Target
 [webapp]: http://localhost:3000
-
-# For GUI applications (launches hidden window)
-[gui]: myapp.exe
-
-# For TUI/CLI applications (captures terminal output)
-[tui]: npm run dev
-```
-
-## Invisible Capture Techniques
-
-All visual captures happen **without user disruption**:
-
-- **Webapps**: Headless Chrome/Edge (`--headless=new`) - completely invisible
-- **GUI Apps**: PowerShell hidden window launch - no taskbar, no focus steal
-- **TUI Apps**: Background cmd.exe with output capture - silent
-
-The user can continue working normally while verification happens.
-
-## Example Task File
-
-```markdown
-# My Web App Task
-
-## Application
-
-[webapp]: http://localhost:3000
-
-## Acceptance Criteria
-
-- Login form has email and password fields
-- Submit button is visible and clickable
-- Error messages display in red
 
 ## Checklist
-
 - [ ] Login page renders correctly
 - [ ] Form validation works
 - [x] Already done step
 - [ ] Dashboard loads after login
 ```
 
+## Invisible Capture
+
+All captures happen without user disruption:
+
+| Adapter | Capture Method |
+|---------|----------------|
+| playwright | Headless browser (--headless=new) |
+| browser | Headless Chrome/Edge |
+| tui | Background terminal capture |
+| gui | Hidden window + PrintWindow API |
+| cli | Subprocess stdout/stderr |
+
 ## Notes
 
-- The `<name>` parameter should match the filename without `.md` extension
-- If the file doesn't exist, an error is shown
-- If all items are complete, a success message is shown
-- Use `--verify` to enable visual verification via Claude CLI
-- Use `--verify-each` to verify after each individual item
-- **All visual captures are invisible** - no window shown, no focus stealing
-- Screenshots are saved for debugging verification failures
-
-## Requirements
-
-- **Claude CLI** (`claude` command) must be in PATH for verification
-- **Edge or Chrome** browser for webapp screenshots
-- **PowerShell** for invisible window management (Windows)
+- Task file must exist in .claude/ directory
+- Adapters auto-detect from target markers
+- Use --capture to save captures for later verification
+- Use --batch to immediately batch verify captures
+- All captures are invisible - no user disruption
+- Captures saved to .tool-reader/captures/ by default

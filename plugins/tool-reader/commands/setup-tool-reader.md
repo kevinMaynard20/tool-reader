@@ -1,201 +1,143 @@
 # /setup-tool-reader
 
-Initialize tool-reader in the current project. Configures CLAUDE.md to **read from Claude's TodoWrite** and trigger verification based on todo state.
+Initialize tool-reader in the current project. Configures CLAUDE.md with adapter settings and todo-based verification triggers.
 
 ## Usage
 
-```
-/setup-tool-reader [url|command]
+```bash
+/setup-tool-reader
+/setup-tool-reader --target <url|command>
+/setup-tool-reader --adapter <playwright|browser|tui|gui|cli|auto>
+/setup-tool-reader --capture-dir <path>
 ```
 
 ## Parameters
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `url` or `command` | No | Dev server URL or run command (auto-detected if not provided) |
+| `--target` | No | Default target (URL or command) |
+| `--adapter` | No | Preferred adapter (auto-detected if not specified) |
+| `--capture-dir` | No | Directory for captures (default: .tool-reader/captures/) |
+| `--playwright` | No | Enable Playwright with settings |
 
 ## Examples
 
-```
+```bash
+# Auto-detect everything
 /setup-tool-reader
-/setup-tool-reader http://localhost:5173
-/setup-tool-reader "cargo run"
-/setup-tool-reader "npm run dev"
+
+# Specify target
+/setup-tool-reader --target http://localhost:3000
+/setup-tool-reader --target "cargo run"
+
+# Specify adapter
+/setup-tool-reader --adapter playwright
+/setup-tool-reader --adapter tui
+
+# Configure capture directory
+/setup-tool-reader --capture-dir ./screenshots
+
+# Full configuration
+/setup-tool-reader --target http://localhost:5173 --adapter playwright --capture-dir ./captures
 ```
 
 ## What It Does
 
-1. **Detect Project Type** - Scan for package.json, Cargo.toml, pyproject.toml, etc.
-2. **Find Dev Server/Command** - Auto-detect URL or run command
-3. **Configure Todo Integration** - Tell CLAUDE.md to read from TodoWrite for verification triggers
-4. **Add Config** - Append tool-reader config to CLAUDE.md
+1. **Detect Project Type** - Scan for package.json, Cargo.toml, etc.
+2. **Select Adapter** - Auto-detect or use specified adapter
+3. **Configure Capture Dir** - Set up capture storage location
+4. **Add to CLAUDE.md** - Append tool-reader configuration
+5. **Setup Todo Integration** - Configure verification triggers
 
-## Implementation Steps
+## Auto-Detection
 
-When `/setup-tool-reader` is invoked:
+| Files Found | Project Type | Default Adapter |
+|-------------|--------------|-----------------|
+| package.json | webapp | playwright/browser |
+| Cargo.toml (ratatui) | tui | tui |
+| Cargo.toml (iced/egui) | gui | gui |
+| Cargo.toml (other) | cli | cli |
+| pyproject.toml | python | cli |
+| Other | unknown | cli |
 
-### Step 1: Check for existing config
-```python
-claude_md = Path("CLAUDE.md")
-if claude_md.exists():
-    content = claude_md.read_text()
-    if "tool-reader:" in content:
-        print("Tool-reader already configured!")
-        return
-```
+## Configuration Added to CLAUDE.md
 
-### Step 2: Detect project type and command
-```python
-# Auto-detect based on project files
-if Path("package.json").exists():
-    project_type = "webapp"
-    pkg = json.loads(Path("package.json").read_text())
-    deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
-
-    # Detect framework and default port
-    if "next" in deps:
-        run_command = "npm run dev"
-        default_url = "http://localhost:3000"
-    elif "vite" in deps:
-        run_command = "npm run dev"
-        default_url = "http://localhost:5173"
-    else:
-        run_command = "npm start"
-        default_url = "http://localhost:3000"
-
-elif Path("Cargo.toml").exists():
-    project_type = "rust"
-    cargo = Path("Cargo.toml").read_text()
-    if any(x in cargo for x in ["ratatui", "tui", "crossterm"]):
-        app_type = "tui"
-    elif "iced" in cargo or "egui" in cargo:
-        app_type = "gui"
-    else:
-        app_type = "cli"
-    run_command = "cargo run"
-
-elif Path("pyproject.toml").exists() or Path("setup.py").exists():
-    project_type = "python"
-    run_command = "python -m app" # or detected entry point
-
-else:
-    project_type = "unknown"
-    run_command = None
-```
-
-### Step 3: Generate config
-```python
-config = f"""
+```markdown
 ---
 
 ## Tool Reader Configuration
 
 tool-reader: enabled
-tool-reader-type: {project_type}
-{f"tool-reader-url: {url or default_url}" if project_type == "webapp" else f"tool-reader-command: {run_command}" if run_command else ""}
+tool-reader-adapter: auto
+tool-reader-target: http://localhost:3000
+tool-reader-capture-dir: .tool-reader/captures/
+
+### Adapters Available
+
+| Adapter | Targets | Features |
+|---------|---------|----------|
+| playwright | http://, https:// | Event-based, sequences |
+| browser | http://, https:// | Headless screenshot |
+| tui | tui:, commands | ANSI capture |
+| gui | window:, .exe | Window capture |
+| cli | commands | stdout/stderr |
 
 ### Read From Todos
 
-Claude should check its TodoWrite state to determine when verification is needed:
+Claude should check TodoWrite state for verification triggers:
 
-**Verification Triggers** - Run `/verify-tool` when:
-1. All todos in a phase (implement/test/build) are completed
-2. A todo containing "verify", "test", "check", "build", "run" is completed
-3. All todos are marked complete (final verification)
-4. User explicitly requests verification
+**Run `/verify-tool` when:**
+1. All todos in phase (implement/test/build) completed
+2. Todo with "verify", "test", "check", "build" completed
+3. All todos marked complete
 
-**Phase Keywords**:
-- Implementation: implement, create, add, write, code, develop
-- Testing: test, spec, unit, integration, e2e
-- Build: build, compile, bundle, package
+**Phase Keywords:**
+- Implementation: implement, create, add, write
+- Testing: test, spec, unit, integration
+- Build: build, compile, bundle
 - Deploy: deploy, release, publish
 
 ### .md File Instructions
 
-When user asks to follow instructions from an .md file:
-1. Parse checklist items (`- [ ]` / `- [x]`) into TodoWrite
-2. Work through items, marking complete as done
-3. Trigger verification at section boundaries (## headings)
-4. Run final verification when all items complete
+When following .md file instructions:
+1. Parse checklist items into TodoWrite
+2. Trigger verification at section boundaries
+3. Run final verification when complete
 
 ### Commands
 
-- `/verify-tool <task>` - Run verification for a task file
-- `/verify-tool <task> --check-todos` - Check if todos indicate verification needed
-- `/list-tools` - List available task files
-"""
-```
-
-### Step 4: Update CLAUDE.md
-```python
-if claude_md.exists():
-    with open(claude_md, "a") as f:
-        f.write("\n" + config)
-else:
-    full_content = f"# {project_name}\n\n{config}"
-    claude_md.write_text(full_content)
+- `/verify-tool <task>` - Verify with auto-detected adapter
+- `/verify-tool <task> --adapter <type>` - Use specific adapter
+- `/verify-tool <task> --batch <dir>` - Batch verify captures
+- `/capture --target <target>` - Capture current state
+- `/verify-batch <dir>` - Batch verify captures
+- `/list-tools --captures` - List pending captures
 ```
 
 ## Output
 
-```markdown
+```
 ## Tool Reader Setup Complete
 
 **Project**: my-project
-**Type**: webapp (React/Vite)
-**URL**: http://localhost:5173
+**Type**: webapp
+**Adapter**: playwright
+**Target**: http://localhost:5173
+**Capture Dir**: .tool-reader/captures/
 
-Added to CLAUDE.md:
-- tool-reader: enabled
-- Todo-based verification triggers
-- .md file instruction support
+Configuration added to CLAUDE.md
 
-Claude will now read from TodoWrite to determine when to run verification.
+Available commands:
+- /verify-tool <task>
+- /capture --target <url|cmd>
+- /verify-batch <capture-dir>
+- /list-tools --adapters
 ```
-
-## How Todo Reading Works
-
-When Claude uses TodoWrite, tool-reader monitors for these patterns:
-
-```
-TodoWrite called with:
-[
-  {"content": "Implement login form", "status": "completed"},
-  {"content": "Add validation", "status": "completed"},
-  {"content": "Test login flow", "status": "completed"},  <- Testing phase done
-  {"content": "Build and deploy", "status": "in_progress"}
-]
-
--> Testing phase completed -> Trigger verification
-```
-
-### Verification Decision Flow
-
-```
-1. Claude marks todo as completed
-2. Check: Does todo contain verification keywords?
-   - Yes -> Run /verify-tool
-3. Check: Are all todos in current phase complete?
-   - Yes -> Run /verify-tool
-4. Check: Are all todos complete?
-   - Yes -> Run final /verify-tool
-5. Otherwise -> Continue working
-```
-
-## Phase-Based Triggers
-
-| Phase | Trigger When | Action |
-|-------|--------------|--------|
-| Implementation | All "implement/create/add" todos done | Verify new functionality |
-| Testing | All "test/spec" todos done | Run tests + verify |
-| Build | "build/compile" todo done | Verify build output |
-| Deploy | "deploy/release" todo done | Verify deployment |
-| Complete | All todos done | Final verification |
 
 ## Notes
 
-- Auto-detects: React, Vue, Next.js, Vite, Rust (TUI/GUI/CLI), Python
-- Configures CLAUDE.md to read from TodoWrite for verification triggers
-- Works with any project type - just provide URL or command if auto-detect fails
-- Todo integration uses Claude's built-in TodoWrite system
-- Creates `.claude/` directory if needed for task files
+- Auto-detects project type from config files
+- Playwright preferred for web (falls back to browser)
+- Creates .tool-reader/captures/ for storing captures
+- Todo integration uses Claude's built-in TodoWrite
+- Configuration can be edited manually in CLAUDE.md

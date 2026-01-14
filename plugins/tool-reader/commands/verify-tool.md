@@ -1,301 +1,204 @@
 # /verify-tool
 
-Visually verify task completion from `.claude/<name>.md` using invisible screenshots and Claude CLI.
-
-**Now integrates with Claude's built-in TodoWrite/task system** to automatically trigger verification at phase boundaries and during verification steps.
+Verify task completion using the agnostic capture adapter system. Works with any target: webpages, TUIs, GUIs, or CLI tools.
 
 ## Usage
 
-```
-/verify-tool <name>
-/verify-tool <name> --visual   # Force visual verification
-/verify-tool <name> --status   # Status only (no visual capture)
-/verify-tool <name> --check-todos   # Check if todos indicate verification needed
-/verify-tool <name> --todos '<json>'  # Provide todo state for auto-trigger
-```
-
-Examples:
-```
-/verify-tool PLUGIN_TASK
-/verify-tool auth-task --visual
-/verify-tool deploy --status
+```bash
+/verify-tool <task-name>
+/verify-tool <task-name> --target <url|command|window>
+/verify-tool <task-name> --adapter <playwright|browser|tui|gui|cli|auto>
+/verify-tool <task-name> --batch <capture-dir>
+/verify-tool <task-name> --captures <path1> <path2> ...
 ```
 
-## What It Does
+## Parameters
 
-1. Reads `.claude/<name>.md` (or `.claude/<name>` if already includes extension)
-2. Detects app type from markers: `[webapp]`, `[gui]`, or `[tui]`
-3. **Launches application invisibly** (no window shown, no focus steal)
-4. **Captures screenshot silently** using:
-   - Headless Chrome/Edge for webapps
-   - Hidden PowerShell process for GUI apps
-   - Captured stdout for TUI apps
-5. **Sends to Claude CLI** with task list for verification
-6. Reports which items appear complete based on visual evidence
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task-name` | Yes | Task file name in .claude/ directory |
+| `--target` | No | Target to verify (URL, command, window name) |
+| `--adapter` | No | Capture adapter (auto-detected if not specified) |
+| `--batch` | No | Directory of captures to batch verify |
+| `--captures` | No | Specific capture files to verify |
+| `--detailed` | No | Include per-capture analysis |
+| `--check-todos` | No | Check if TodoWrite state indicates verification needed |
 
-## Visual Verification Flow
+## Examples
 
-```
-> /verify-tool my-webapp-task
+```bash
+# Auto-detect target from task file
+/verify-tool login-feature
 
-Reading task: .claude/my-webapp-task.md
+# Specify target explicitly
+/verify-tool login-feature --target http://localhost:3000
+/verify-tool tui-panel --target "cargo run"
+/verify-tool desktop-app --target window:MyApp
 
-## Task Info
-- Total Items: 10
-- Completed: 5
-- Remaining: 5
+# Use specific adapter
+/verify-tool web-feature --adapter playwright
+/verify-tool terminal-app --adapter tui
 
-## Application Detection
-- Type: WEBAPP
-- URL: http://localhost:3000
+# Batch verify captures
+/verify-tool user-flow --batch .tool-reader/captures/
+/verify-tool user-flow --batch .tool-reader/captures/ --detailed
 
-## Invisible Capture
-- Launching headless browser...
-- Capturing screenshot (user sees nothing)...
-- Screenshot saved: /tmp/tool-reader/my-webapp-task_1234567890.png
+# Verify specific captures
+/verify-tool login --captures screenshot1.png screenshot2.png
 
-## Claude Verification
-Sending screenshot + task list to Claude CLI...
-
-## Results
-
-| Task | Status | Evidence |
-|------|--------|----------|
-| Login page renders | COMPLETED | Form fields visible |
-| Submit button works | COMPLETED | Button present |
-| Dashboard loads | NOT_COMPLETED | Still on login page |
-| User name displays | UNCERTAIN | Cannot determine |
-
-### Summary
-- Verified Complete: 2
-- Not Complete: 1
-- Uncertain: 1
-- Screenshot: /path/to/screenshot.png
+# Check if todos indicate verification needed
+/verify-tool feature --check-todos
 ```
 
-## App Type Detection
+## Adapters
 
-The command looks for these markers in your task file:
+| Adapter | Target Types | Features |
+|---------|--------------|----------|
+| `playwright` | http://, https:// | Event-based, sequences, DOM capture |
+| `browser` | http://, https:// | Headless screenshot (fallback) |
+| `tui` | tui:, terminal apps | ANSI capture, input, keys |
+| `gui` | window:, .exe | Window screenshot |
+| `cli` | commands | stdout/stderr capture |
+| `auto` | Any | Auto-detect based on target |
 
-```markdown
-# For web applications
-[webapp]: http://localhost:3000
+## Target Formats
 
-# For GUI applications
-[gui]: myapp.exe
+```bash
+# Web targets
+--target http://localhost:3000
+--target https://example.com
 
-# For TUI/CLI applications
-[tui]: npm run dev
+# TUI targets
+--target "cargo run"
+--target "tui:npm run dev"
+
+# GUI targets
+--target window:MyAppTitle
+--target "gui:app.exe|Window Title"
+
+# CLI targets
+--target "cli:npm test"
+--target "python script.py"
 ```
 
-If no marker is found, it auto-detects based on content:
-- URLs like `http://` or `localhost` → WEBAPP
-- `.exe` or `window` mentions → GUI
-- `terminal`, `cli`, `console` mentions → TUI
+## Event-Based Capture
 
-## Invisible Capture Techniques
+When using Playwright adapter, capture on specific events:
 
-### Webapps (Headless Browser)
+```bash
+# Capture after clicking element
+/verify-tool login --adapter playwright --capture-on click:#submit-btn
 
-Uses Edge or Chrome in `--headless=new` mode:
-- **Completely invisible** - no browser window ever appears
-- **No focus steal** - user can continue working
-- **Silent** - no notifications or sounds
-- Screenshot saved automatically
-
-### GUI Apps (Hidden Window)
-
-Uses PowerShell to launch with hidden window:
-```powershell
-$startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
-$startInfo.CreateNoWindow = $true
+# Capture sequence
+/verify-tool user-flow --adapter playwright --sequence "
+  screenshot
+  click:#login-btn
+  input:#email=test@example.com
+  input:#password=secret
+  click:#submit
+  navigate
+  screenshot
+"
 ```
-- Window never becomes visible
-- No taskbar entry
-- No focus change
 
-### TUI Apps (Background Process)
+## Batch Verification
 
-Runs command in hidden `cmd.exe`:
-- Output captured to temp file
-- No console window shown
-- Text output sent to Claude instead of screenshot
+Verify multiple captures in a single Claude call:
+
+```bash
+# Summary mode (default)
+/verify-tool feature --batch ./captures/
+
+# Detailed per-image analysis
+/verify-tool feature --batch ./captures/ --detailed
+```
+
+### Batch Output (Summary)
+
+```
+BATCH VERIFICATION: 5 captures
+==================================================
+  PASSED:    4/5
+  FAILED:    1/5
+
+Issues Found:
+  - Capture 3: Submit button not visible
+
+Overall: partial
+Recommendation: Fix viewport scroll issue
+```
+
+### Batch Output (Detailed)
+
+```
+### Capture 1: login_initial.png
+Status: PASS
+Evidence: Login form visible with email/password fields
+Verified: [x] Login page renders
+
+### Capture 2: login_filled.png
+Status: PASS
+Evidence: Form fields populated correctly
+
+### Capture 3: login_submit.png
+Status: FAIL
+Evidence: Submit button below viewport
+Issues: - Button may require scroll
+```
+
+## Todo Integration
+
+Check if TodoWrite state indicates verification is needed:
+
+```bash
+/verify-tool feature --check-todos
+```
+
+### Verification Triggers
+
+Verification auto-triggers when:
+1. All todos in a phase (implement/test/build) completed
+2. Todo containing "verify", "test", "check", "build" completed
+3. All todos marked complete (final verification)
 
 ## Task File Format
 
 ```markdown
-# My Web App Task
+# My Feature Task
 
-## Application
-
+## Target
 [webapp]: http://localhost:3000
+# or: [tui]: cargo run
+# or: [gui]: app.exe|Window Title
 
 ## Acceptance Criteria
-
-- Login form should have email and password fields
-- Submit button should be blue and centered
-- Error messages show in red
+- Login form displays email and password fields
+- Submit button is visible and clickable
+- Error messages appear in red
 
 ## Checklist
-
 - [ ] Login page renders correctly
-- [ ] Form has proper validation
+- [ ] Form validates input
 - [x] Already completed item
-- [ ] Dashboard loads after login
 ```
 
-## Output Format
+## Integration with Capture Hook
 
-### Visual Verification Output
-
-```markdown
-## Visual Verification: TASK.md
-
-**Status**: IN_PROGRESS
-
-| Metric | Count |
-|--------|-------|
-| Total Items | 10 |
-| Completed | 5 |
-| Remaining | 5 |
-
-### App Configuration
-- Type: WEBAPP
-- URL: http://localhost:3000
-- Capture: Headless Chrome (invisible)
-
-### Verification Results
-
-| Task | Status | Evidence |
-|------|--------|----------|
-| Login renders | COMPLETED | Form visible with fields |
-| Form validates | COMPLETED | Error messages present |
-| Dashboard loads | NOT_COMPLETE | Still on login page |
-
-### Remaining Items (based on file):
-1. [ ] Dashboard loads after login
-
-### Screenshot
-Saved: /tmp/tool-reader/TASK_1234567890.png
-```
-
-### Status-Only Output (--status flag)
-
-```
-> /verify-tool PLUGIN_TASK --status
-
-## Task Verification: PLUGIN_TASK.md
-
-**Status**: IN_PROGRESS
-
-| Metric | Count |
-|--------|-------|
-| Total Items | 25 |
-| Completed | 12 |
-| Remaining | 13 |
-| Progress | 48% |
-
-### Remaining Items:
-1. [ ] Create tool-reader plugin structure
-2. [ ] Implement /list-tools
-3. [ ] Implement /run-tool
-...
-```
-
-## Status Values
-
-- **NOT_STARTED**: 0 items completed
-- **IN_PROGRESS**: Some items completed, some remaining
-- **COMPLETE**: All items completed (100%)
-
-## Requirements
-
-- **Claude CLI** - `claude` command must be in PATH
-- **Edge or Chrome** - For webapp screenshots (headless mode)
-- **PowerShell** - For invisible window management (Windows)
-
-## Claude Todo Integration
-
-Tool-reader can now reference Claude's built-in TodoWrite/task system to determine when verification should occur. This enables **automatic verification triggers** at phase boundaries.
-
-### When Verification Auto-Triggers
-
-1. **Phase Completion** - When all todos in a phase (implementation, testing, build) are completed
-2. **Verification Todos** - When a todo containing "verify", "test", "check", or "validate" is completed
-3. **High-Priority Phases** - When build, test, or deploy phases complete
-4. **Final Verification** - When all todos are marked complete
-
-### Verification Keywords
-
-Todos containing these keywords trigger verification when completed:
-- `verify`, `test`, `check`, `validate`, `confirm`, `ensure`
-- `build`, `run`, `deploy`, `launch`, `render`, `display`
-- `ui`, `visual`, `screenshot`, `appearance`, `layout`
-
-### Phase Detection
-
-Todos are automatically categorized into phases:
-- **Implementation**: implement, create, add, write, code, develop
-- **Testing**: test, spec, unit, integration, e2e
-- **Verification**: verify, check, validate, confirm
-- **Build**: build, compile, bundle, package
-- **Deploy**: deploy, release, publish, ship
-- **Review**: review, pr, merge, commit
-
-### Example: Todo-Triggered Verification
-
-```
-## Current Todos (from TodoWrite)
-- [x] Implement login form
-- [x] Add form validation
-- [x] Verify login UI renders correctly  <- triggers verification
-- [ ] Write unit tests
-- [ ] Run build and fix errors
-
-## Verification Check Output
-
-TODO VERIFICATION CHECK
-==================================================
-Recommend Verify: True
-Priority: normal
-Phase: verification
-Progress: 60%
-Reason: Verification todo completed: Verify login UI renders correctly
-Action: Run /verify-tool to visually confirm the completed work
-```
-
-### Programmatic Usage
-
-```python
-from visual_verifier import check_todos_for_verification, get_verification_recommendation
-
-# Check if verification should trigger
-todos_json = '{"todos": [{"content": "Build UI", "status": "completed"}, ...]}'
-context = check_todos_for_verification(todos_json=todos_json)
-
-if context.should_verify:
-    recommendation = get_verification_recommendation(context)
-    print(f"Verify needed: {recommendation['reason']}")
-```
-
-### CLI Usage with Todos
+Accept external screenshots for verification:
 
 ```bash
-# Check if current todos indicate verification is needed
-python visual_verifier.py task.md --check-todos --todos '{"todos":[...]}'
+# Add external capture
+python capture_hook.py add screenshot.png --event "clicked login"
 
-# Run verification with todo context in report
-python visual_verifier.py task.md --todos '{"todos":[...]}'
+# Verify all pending captures
+/verify-tool feature --batch .tool-reader/captures/
 ```
 
 ## Notes
 
-- The `<name>` parameter should match the filename without `.md` extension
-- If the file doesn't exist, an error is shown
-- If no app type is detected, falls back to status-only mode
-- Screenshots are saved for debugging failed verifications
-- **All operations are invisible** - user is never interrupted
-- Use `--status` flag to skip visual verification
-- Use `/run-tool` to actually execute uncompleted items
-- Use `/list-tools` to see all available task files
-- **Todo integration** automatically suggests when to verify based on task progress
+- **All picture verifications use Claude Sonnet model** for consistent, high-quality analysis
+- Adapters auto-detect based on target format
+- Playwright adapter preferred for web (falls back to browser if unavailable)
+- Batch verification sends all captures in single Claude call
+- Use `--detailed` for per-capture analysis
+- Todo integration reads from Claude's TodoWrite state
