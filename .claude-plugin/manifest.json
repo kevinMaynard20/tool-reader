@@ -1,12 +1,14 @@
 {
   "name": "tool-reader",
-  "version": "2.0.0",
-  "description": "Visual verification skill for GUI, TUI, and webapp changes with auto-fix capabilities",
-  "author": "kmaynardrpp",
+  "version": "2.0.1",
+  "description": "Visual verification skill for GUI, TUI, and webapp changes with agnostic adapter system and Sonnet-powered analysis",
+  "author": "kevinMaynard20",
   "commands": [
     "list-tools",
     "run-tool",
     "verify-tool",
+    "verify-batch",
+    "capture",
     "save-baseline",
     "compare-baseline",
     "setup-tool-reader"
@@ -23,7 +25,9 @@
     "save baseline",
     "compare baseline",
     "setup tool-reader",
-    "configure auto-verify"
+    "configure auto-verify",
+    "batch verify",
+    "capture screenshot"
   ],
   "proactive_triggers": {
     "file_patterns": [
@@ -43,6 +47,9 @@
     "headless_browser",
     "baseline_comparison",
     "auto_fix",
-    "regression_testing"
+    "regression_testing",
+    "batch_verification",
+    "playwright_integration",
+    "sonnet_analysis"
   ]
 }
