@@ -2,12 +2,16 @@
 
 Visually verify task completion from `.claude/<name>.md` using invisible screenshots and Claude CLI.
 
+**Now integrates with Claude's built-in TodoWrite/task system** to automatically trigger verification at phase boundaries and during verification steps.
+
 ## Usage
 
 ```
 /verify-tool <name>
 /verify-tool <name> --visual   # Force visual verification
 /verify-tool <name> --status   # Status only (no visual capture)
+/verify-tool <name> --check-todos   # Check if todos indicate verification needed
+/verify-tool <name> --todos '<json>'  # Provide todo state for auto-trigger
 ```
 
 Examples:
@@ -210,6 +214,80 @@ Saved: /tmp/tool-reader/TASK_1234567890.png
 - **Edge or Chrome** - For webapp screenshots (headless mode)
 - **PowerShell** - For invisible window management (Windows)
 
+## Claude Todo Integration
+
+Tool-reader can now reference Claude's built-in TodoWrite/task system to determine when verification should occur. This enables **automatic verification triggers** at phase boundaries.
+
+### When Verification Auto-Triggers
+
+1. **Phase Completion** - When all todos in a phase (implementation, testing, build) are completed
+2. **Verification Todos** - When a todo containing "verify", "test", "check", or "validate" is completed
+3. **High-Priority Phases** - When build, test, or deploy phases complete
+4. **Final Verification** - When all todos are marked complete
+
+### Verification Keywords
+
+Todos containing these keywords trigger verification when completed:
+- `verify`, `test`, `check`, `validate`, `confirm`, `ensure`
+- `build`, `run`, `deploy`, `launch`, `render`, `display`
+- `ui`, `visual`, `screenshot`, `appearance`, `layout`
+
+### Phase Detection
+
+Todos are automatically categorized into phases:
+- **Implementation**: implement, create, add, write, code, develop
+- **Testing**: test, spec, unit, integration, e2e
+- **Verification**: verify, check, validate, confirm
+- **Build**: build, compile, bundle, package
+- **Deploy**: deploy, release, publish, ship
+- **Review**: review, pr, merge, commit
+
+### Example: Todo-Triggered Verification
+
+```
+## Current Todos (from TodoWrite)
+- [x] Implement login form
+- [x] Add form validation
+- [x] Verify login UI renders correctly  <- triggers verification
+- [ ] Write unit tests
+- [ ] Run build and fix errors
+
+## Verification Check Output
+
+TODO VERIFICATION CHECK
+==================================================
+Recommend Verify: True
+Priority: normal
+Phase: verification
+Progress: 60%
+Reason: Verification todo completed: Verify login UI renders correctly
+Action: Run /verify-tool to visually confirm the completed work
+```
+
+### Programmatic Usage
+
+```python
+from visual_verifier import check_todos_for_verification, get_verification_recommendation
+
+# Check if verification should trigger
+todos_json = '{"todos": [{"content": "Build UI", "status": "completed"}, ...]}'
+context = check_todos_for_verification(todos_json=todos_json)
+
+if context.should_verify:
+    recommendation = get_verification_recommendation(context)
+    print(f"Verify needed: {recommendation['reason']}")
+```
+
+### CLI Usage with Todos
+
+```bash
+# Check if current todos indicate verification is needed
+python visual_verifier.py task.md --check-todos --todos '{"todos":[...]}'
+
+# Run verification with todo context in report
+python visual_verifier.py task.md --todos '{"todos":[...]}'
+```
+
 ## Notes
 
 - The `<name>` parameter should match the filename without `.md` extension
@@ -220,3 +298,4 @@ Saved: /tmp/tool-reader/TASK_1234567890.png
 - Use `--status` flag to skip visual verification
 - Use `/run-tool` to actually execute uncompleted items
 - Use `/list-tools` to see all available task files
+- **Todo integration** automatically suggests when to verify based on task progress

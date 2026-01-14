@@ -2,6 +2,9 @@
 """
 Visual Verifier for Tool Reader.
 Launches applications invisibly, captures screenshots, and verifies via Claude CLI.
+
+Integrates with Claude's built-in TodoWrite/task system to trigger verification
+at phase boundaries and during verification steps.
 """
 
 import os
@@ -13,8 +16,20 @@ import time
 import re
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 from enum import Enum
+
+# Import todo tracker for Claude task integration
+try:
+    from todo_tracker import (
+        TodoItem, TodoStatus, PhaseType, PhaseContext,
+        parse_todos_from_context, analyze_phase_context,
+        check_verification_needed, should_auto_verify,
+        format_verification_prompt
+    )
+    TODO_TRACKER_AVAILABLE = True
+except ImportError:
+    TODO_TRACKER_AVAILABLE = False
 
 
 class AppType(Enum):
@@ -820,6 +835,227 @@ def run_visual_verification(
         )
 
 
+# =============================================================================
+# CLAUDE TODO INTEGRATION
+# =============================================================================
+
+@dataclass
+class TodoVerificationContext:
+    """Context for verification triggered by todo state changes."""
+    should_verify: bool
+    phase: str
+    progress: float
+    triggers: List[str]
+    task_file: Optional[str] = None
+
+
+def check_todos_for_verification(
+    todos_json: Optional[str] = None,
+    context_text: Optional[str] = None
+) -> TodoVerificationContext:
+    """
+    Check Claude's todo state to determine if verification should trigger.
+
+    This function can be called:
+    1. At the end of any phase (implementation, testing, build, etc.)
+    2. When a verification-related todo is completed
+    3. When all todos are marked complete
+
+    Args:
+        todos_json: JSON string from TodoWrite tool call
+        context_text: Raw conversation context containing todo information
+
+    Returns:
+        TodoVerificationContext with verification decision and context
+    """
+    if not TODO_TRACKER_AVAILABLE:
+        return TodoVerificationContext(
+            should_verify=False,
+            phase="unknown",
+            progress=0,
+            triggers=["Todo tracker not available"]
+        )
+
+    todos = []
+
+    # Parse from JSON if provided
+    if todos_json:
+        try:
+            data = json.loads(todos_json)
+            if isinstance(data, dict) and "todos" in data:
+                data = data["todos"]
+
+            for item in data:
+                from todo_tracker import TodoStatus, detect_phase, requires_verification
+                status = TodoStatus(item.get("status", "pending"))
+                content = item.get("content", "")
+                todos.append(TodoItem(
+                    content=content,
+                    status=status,
+                    active_form=item.get("activeForm", ""),
+                    phase=detect_phase(content),
+                    requires_verification=requires_verification(content)
+                ))
+        except (json.JSONDecodeError, KeyError, ValueError):
+            pass
+
+    # Parse from context text if provided and no JSON
+    if not todos and context_text:
+        todos = parse_todos_from_context(context_text)
+
+    if not todos:
+        return TodoVerificationContext(
+            should_verify=False,
+            phase="unknown",
+            progress=0,
+            triggers=["No todos found"]
+        )
+
+    # Check if verification is needed
+    result = check_verification_needed(todos)
+
+    return TodoVerificationContext(
+        should_verify=result["needs_verification"],
+        phase=result["phase"],
+        progress=result["progress"],
+        triggers=result["triggers"]
+    )
+
+
+def run_verification_with_todo_context(
+    task_file_path: str,
+    todos_json: Optional[str] = None,
+    force: bool = False
+) -> Tuple[bool, Optional[VerificationResult], TodoVerificationContext]:
+    """
+    Run visual verification if todo state indicates it's needed.
+
+    This is the main integration point for tool-reader to use Claude's
+    built-in task tracking for verification triggers.
+
+    Args:
+        task_file_path: Path to task markdown file
+        todos_json: Optional JSON string of current todos
+        force: Force verification regardless of todo state
+
+    Returns:
+        Tuple of (ran_verification, result, todo_context)
+    """
+    # Check todo state
+    todo_context = check_todos_for_verification(todos_json=todos_json)
+
+    if not force and not todo_context.should_verify:
+        return False, None, todo_context
+
+    # Parse task file to get items
+    try:
+        from parser import parse_task_file
+        task = parse_task_file(Path(task_file_path))
+        items = [item.text for item in task.items if not item.completed]
+    except ImportError:
+        # Fallback: just read the file and extract checklist items
+        content = Path(task_file_path).read_text(encoding='utf-8')
+        items = re.findall(r'- \[ \]\s*(.+?)(?:\n|$)', content)
+
+    if not items:
+        return False, None, todo_context
+
+    # Run verification
+    result = run_visual_verification(
+        task_file_path,
+        items
+    )
+
+    return True, result, todo_context
+
+
+def format_todo_verification_report(
+    verification_result: Optional[VerificationResult],
+    todo_context: TodoVerificationContext
+) -> str:
+    """
+    Format a comprehensive report combining todo state and verification results.
+    """
+    report = []
+    report.append("=" * 60)
+    report.append("VERIFICATION REPORT (Todo-Triggered)")
+    report.append("=" * 60)
+
+    # Todo context section
+    report.append("\n## Todo State")
+    report.append(f"- Phase: {todo_context.phase}")
+    report.append(f"- Progress: {todo_context.progress}%")
+    report.append(f"- Verification Triggered: {'Yes' if todo_context.should_verify else 'No'}")
+
+    if todo_context.triggers:
+        report.append("\n### Triggers:")
+        for trigger in todo_context.triggers:
+            report.append(f"  - {trigger}")
+
+    # Verification results section
+    if verification_result:
+        report.append("\n## Visual Verification Results")
+        report.append(f"- Success: {verification_result.success}")
+        report.append(f"- Completed: {len(verification_result.completed_items)}")
+        report.append(f"- Failed: {len(verification_result.failed_items)}")
+
+        if verification_result.completed_items:
+            report.append("\n### Completed Items:")
+            for item in verification_result.completed_items:
+                report.append(f"  [OK] {item}")
+
+        if verification_result.failed_items:
+            report.append("\n### Failed Items:")
+            for item in verification_result.failed_items:
+                report.append(f"  [!!] {item}")
+
+        if verification_result.screenshot_path:
+            report.append(f"\n### Screenshot: {verification_result.screenshot_path}")
+    else:
+        report.append("\n## Visual Verification")
+        report.append("- Not run (todo state did not trigger)")
+
+    report.append("\n" + "=" * 60)
+
+    return "\n".join(report)
+
+
+def get_verification_recommendation(todo_context: TodoVerificationContext) -> Dict[str, Any]:
+    """
+    Get a recommendation for whether to run verification.
+
+    This can be used by Claude to decide whether to trigger /verify-tool.
+
+    Returns:
+        Dict with recommendation and reasoning
+    """
+    if todo_context.should_verify:
+        # Determine priority based on triggers
+        priority = "normal"
+        if any("final" in t.lower() for t in todo_context.triggers):
+            priority = "high"
+        elif any("build" in t.lower() or "deploy" in t.lower() for t in todo_context.triggers):
+            priority = "high"
+
+        return {
+            "recommend_verify": True,
+            "priority": priority,
+            "reason": todo_context.triggers[0] if todo_context.triggers else "Phase completed",
+            "phase": todo_context.phase,
+            "progress": todo_context.progress,
+            "action": "Run /verify-tool to visually confirm the completed work"
+        }
+    else:
+        return {
+            "recommend_verify": False,
+            "priority": "none",
+            "reason": "No verification triggers detected",
+            "phase": todo_context.phase,
+            "progress": todo_context.progress,
+            "action": "Continue with remaining tasks"
+        }
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -828,9 +1064,29 @@ if __name__ == "__main__":
     parser.add_argument("--items", nargs="+", help="Task items to verify")
     parser.add_argument("--criteria", help="Acceptance criteria")
     parser.add_argument("--screenshot-dir", help="Directory for screenshots")
+    parser.add_argument("--todos", help="JSON string of todos for auto-trigger check")
+    parser.add_argument("--check-todos", action="store_true",
+                        help="Only check if todos indicate verification needed")
 
     args = parser.parse_args()
 
+    # If just checking todos
+    if args.check_todos:
+        todo_ctx = check_todos_for_verification(todos_json=args.todos)
+        recommendation = get_verification_recommendation(todo_ctx)
+
+        print("\n" + "=" * 50)
+        print("TODO VERIFICATION CHECK")
+        print("=" * 50)
+        print(f"Recommend Verify: {recommendation['recommend_verify']}")
+        print(f"Priority: {recommendation['priority']}")
+        print(f"Phase: {recommendation['phase']}")
+        print(f"Progress: {recommendation['progress']}%")
+        print(f"Reason: {recommendation['reason']}")
+        print(f"Action: {recommendation['action']}")
+        sys.exit(0)
+
+    # Normal verification flow
     if not args.items:
         # Parse items from task file
         from parser import parse_task_file
@@ -846,16 +1102,21 @@ if __name__ == "__main__":
         args.screenshot_dir
     )
 
-    print("\n" + "=" * 50)
-    print("VERIFICATION RESULT")
-    print("=" * 50)
-    print(f"Success: {result.success}")
-    print(f"\nCompleted Items ({len(result.completed_items)}):")
-    for item in result.completed_items:
-        print(f"  [DONE] {item}")
-    print(f"\nFailed Items ({len(result.failed_items)}):")
-    for item in result.failed_items:
-        print(f"  [FAIL] {item}")
-    if result.screenshot_path:
-        print(f"\nScreenshot: {result.screenshot_path}")
-    print(f"\nClaude Response:\n{result.claude_response}")
+    # If todos provided, include in report
+    if args.todos:
+        todo_ctx = check_todos_for_verification(todos_json=args.todos)
+        print(format_todo_verification_report(result, todo_ctx))
+    else:
+        print("\n" + "=" * 50)
+        print("VERIFICATION RESULT")
+        print("=" * 50)
+        print(f"Success: {result.success}")
+        print(f"\nCompleted Items ({len(result.completed_items)}):")
+        for item in result.completed_items:
+            print(f"  [DONE] {item}")
+        print(f"\nFailed Items ({len(result.failed_items)}):")
+        for item in result.failed_items:
+            print(f"  [FAIL] {item}")
+        if result.screenshot_path:
+            print(f"\nScreenshot: {result.screenshot_path}")
+        print(f"\nClaude Response:\n{result.claude_response}")
