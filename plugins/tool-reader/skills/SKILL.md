@@ -43,13 +43,47 @@ Add these to your task file to specify what to capture:
 
 ## Activation Triggers
 
+### Manual Triggers
 Activate this skill when the user:
 - Says "/list-tools" to see available tasks
 - Says "/run-tool <name>" to execute a task
 - Says "/verify-tool <name>" to check status visually
+- Says "/save-baseline <name>" to save current UI state
+- Says "/compare-baseline <name>" to check for regressions
+- Says "/setup-tool-reader" to configure auto-verify in a project
 - Asks to "list tasks" or "show tools"
 - Wants to "check progress" on tasks
 - Asks about items in `.claude/` directory
+- Asks to "setup tool-reader" or "configure auto-verify"
+
+### Proactive Auto-Verification (When Enabled in Project)
+**IMPORTANT**: When a project's CLAUDE.md contains the line `tool-reader: auto-verify`, this skill should be invoked automatically after you edit UI files.
+
+**Trigger Conditions** - Auto-verify after editing files matching these patterns:
+```
+# Frontend Web
+*.tsx, *.jsx, *.vue, *.svelte, *.astro
+*.css, *.scss, *.sass, *.less, *.styled.ts
+*.html (if contains <script> or is SPA entry)
+
+# Desktop GUI
+*.xaml, *.axaml (WPF/Avalonia)
+*.fxml (JavaFX)
+*.ui, *.qml (Qt)
+*.glade (GTK)
+
+# TUI/CLI
+**/cli/**, **/tui/**, **/*_cli.*, **/*_tui.*
+Files containing curses, blessed, ink, or similar TUI imports
+```
+
+**Auto-Verification Workflow**:
+1. After editing a UI file, check if project has `tool-reader: auto-verify` in CLAUDE.md
+2. Detect if a dev server is running (localhost:3000, 5173, 8080, etc.) or if app is launchable
+3. Capture screenshot invisibly
+4. Compare against baseline (if exists) or verify current state
+5. If issues detected: **attempt auto-fix**, then re-verify
+6. Report results to user
 
 ## Commands
 
@@ -250,6 +284,146 @@ Verification stopped at item 7/10
 Screenshot: /path/to/screenshot.png
 ```
 
+## Baseline Screenshot Management
+
+Tool Reader maintains baseline screenshots for regression testing in `.claude/baselines/`.
+
+### /save-baseline <name>
+
+Save current state as a baseline for future comparisons:
+
+1. Capture current screenshot (webapp/gui/tui)
+2. Save to `.claude/baselines/<name>_<timestamp>.png`
+3. Update `.claude/baselines/manifest.json` with metadata
+4. Report baseline saved
+
+### /compare-baseline <name>
+
+Compare current state against saved baseline:
+
+1. Load baseline from `.claude/baselines/`
+2. Capture current screenshot
+3. Perform visual diff analysis with Claude
+4. Report differences found
+5. Suggest fixes if regressions detected
+
+### Baseline Storage Structure
+
+```
+.claude/
+├── baselines/
+│   ├── manifest.json          # Tracks all baselines with metadata
+│   ├── login-page_1234567890.png
+│   ├── dashboard_1234567890.png
+│   └── settings-modal_1234567890.png
+└── tasks/
+    └── my-task.md
+```
+
+### manifest.json Format
+
+```json
+{
+  "baselines": [
+    {
+      "name": "login-page",
+      "file": "login-page_1234567890.png",
+      "created": "2024-01-15T10:30:00Z",
+      "app_type": "webapp",
+      "url": "http://localhost:3000/login",
+      "description": "Login page after styling update"
+    }
+  ]
+}
+```
+
+## Auto-Fix Workflow
+
+When verification detects issues, Tool Reader can attempt automatic fixes.
+
+### Auto-Fix Process
+
+1. **Capture Issue** - Screenshot shows unexpected state
+2. **Analyze Problem** - Claude identifies what's wrong
+3. **Locate Source** - Find the relevant code file(s)
+4. **Generate Fix** - Claude proposes code changes
+5. **Apply Fix** - Edit the file(s)
+6. **Re-verify** - Capture new screenshot and confirm fix
+7. **Report** - Show before/after comparison
+
+### Auto-Fix Output
+
+```markdown
+## Auto-Fix Attempt
+
+**Issue Detected**: Button text is "Submti" instead of "Submit"
+**File**: src/components/LoginForm.tsx:42
+**Fix Applied**:
+```diff
+- <button>Submti</button>
++ <button>Submit</button>
+```
+
+**Re-verification**: PASSED
+**Screenshot**: .claude/baselines/fix_1234567890.png
+```
+
+### Auto-Fix Limitations
+
+- Only attempts fixes for clear visual issues (typos, missing elements, wrong colors)
+- Will NOT auto-fix complex logic bugs
+- Will NOT auto-fix without user's `tool-reader: auto-verify` opt-in
+- Stops after 3 failed fix attempts
+
+## File Pattern Detection
+
+Tool Reader uses file patterns to determine when to auto-verify.
+
+### UI File Patterns
+
+```python
+UI_PATTERNS = {
+    # Frontend frameworks
+    "webapp": [
+        "**/*.tsx", "**/*.jsx",           # React
+        "**/*.vue",                        # Vue
+        "**/*.svelte",                     # Svelte
+        "**/*.astro",                      # Astro
+        "**/pages/**/*", "**/app/**/*",   # Next.js/Nuxt routes
+    ],
+    # Styles
+    "styles": [
+        "**/*.css", "**/*.scss", "**/*.sass", "**/*.less",
+        "**/*.styled.ts", "**/*.styled.tsx",
+        "**/tailwind.config.*",
+    ],
+    # Desktop GUI
+    "gui": [
+        "**/*.xaml", "**/*.axaml",        # WPF/Avalonia
+        "**/*.fxml",                       # JavaFX
+        "**/*.ui", "**/*.qml",            # Qt
+        "**/*.glade",                      # GTK
+    ],
+    # Terminal UI
+    "tui": [
+        "**/cli/**/*", "**/tui/**/*",
+        "**/*_cli.*", "**/*_tui.*",
+    ],
+}
+```
+
+### Detection Logic
+
+```python
+def should_auto_verify(edited_file: str) -> bool:
+    """Check if edited file should trigger auto-verification."""
+    for category, patterns in UI_PATTERNS.items():
+        for pattern in patterns:
+            if fnmatch(edited_file, pattern):
+                return True
+    return False
+```
+
 ## Best Practices
 
 1. Always verify file exists before operations
@@ -261,6 +435,8 @@ Screenshot: /path/to/screenshot.png
 7. **Never steal focus** - all captures are invisible
 8. **Save screenshots** for debugging verification failures
 9. Include acceptance criteria for better Claude verification
+10. **Save baselines** after major UI changes for regression testing
+11. **Attempt auto-fix** only when enabled and issue is clear
 
 ## Requirements
 

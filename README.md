@@ -1,40 +1,61 @@
 # Tool Reader - Claude Code Plugin
 
-A Claude Code plugin that reads, executes, and visually verifies task definitions from `.claude/*.md` files.
+A Claude Code skill that automatically verifies GUI, TUI, and webapp changes with invisible screenshots and auto-fix capabilities.
 
 ## Features
 
-- **Scan for Tasks**: Discover all task definition files in `.claude/` directory
-- **Parse Checklists**: Parse `[ ]` and `[x]` checklist format
-- **Execute Tasks**: Run tasks with progress tracking
 - **Visual Verification**: Capture invisible screenshots and verify with Claude CLI
-- **Track Progress**: Report completion status and percentages
+- **Auto-Verify**: Automatically verify after editing UI files (when enabled)
+- **Auto-Fix**: Attempt automatic code fixes when issues are detected
+- **Baseline Comparison**: Save and compare screenshots for regression testing
+- **Multi-Platform**: Works with webapps, desktop GUI, and TUI/CLI apps
 
 ## Installation
 
 ### Step 1: Add the marketplace
 
 ```
-/plugin marketplace add kevinmaynard20
+/plugin marketplace add kevinMaynard20/tool-reader
 ```
 
 ### Step 2: Install the plugin
 
 ```
-/plugin install tool-reader@kevinmaynard20
+/plugin install tool-reader@kevinMaynard20-tool-reader
 ```
 
-### Alternative: From Local Path
+## Quick Start
+
+### Enable Auto-Verification in Your Project
+
+Add this line to your project's `CLAUDE.md`:
+
+```markdown
+tool-reader: auto-verify
+```
+
+Now Claude will automatically verify UI changes after you edit `.tsx`, `.vue`, `.css`, and other UI files.
+
+### Manual Verification
 
 ```
-/plugin install /path/to/tool-reader
+/verify-tool my-task
 ```
 
 ## Commands
 
+| Command | Description |
+|---------|-------------|
+| `/list-tools` | List all task files in `.claude/` with status |
+| `/run-tool <name>` | Execute a task with optional verification |
+| `/verify-tool <name>` | Visually verify task completion |
+| `/save-baseline <name>` | Save current UI state as baseline |
+| `/compare-baseline <name>` | Compare current state against baseline |
+| `/setup-tool-reader` | Configure auto-verify in current project |
+
 ### /list-tools
 
-Scan the `.claude/` directory for task definition files and display them with their status.
+Scan the `.claude/` directory for task files and display status.
 
 ```
 /list-tools
@@ -42,7 +63,7 @@ Scan the `.claude/` directory for task definition files and display them with th
 
 ### /run-tool <name>
 
-Execute a task definition from `.claude/<name>.md`.
+Execute a task from `.claude/<name>.md`.
 
 ```
 /run-tool my-task
@@ -56,12 +77,37 @@ Visually verify task completion using invisible screenshots.
 
 ```
 /verify-tool my-task
-/verify-tool my-task --status   # Status only (no visual capture)
+```
+
+### /save-baseline <name>
+
+Save current UI state as a baseline for regression testing.
+
+```
+/save-baseline login-page
+/save-baseline dashboard "After adding stats widget"
+```
+
+### /compare-baseline <name>
+
+Compare current state against a saved baseline.
+
+```
+/compare-baseline login-page
+```
+
+### /setup-tool-reader
+
+Initialize auto-verification in the current project.
+
+```
+/setup-tool-reader
+/setup-tool-reader http://localhost:5173
 ```
 
 ## Task File Format
 
-Task files should use markdown with checklists and optional app type markers:
+Create task files in `.claude/` with checklists and app type markers:
 
 ```markdown
 # Task Name
@@ -69,7 +115,7 @@ Task files should use markdown with checklists and optional app type markers:
 ## Application
 
 [webapp]: http://localhost:3000
-[gui]: myapp.exe
+[gui]: myapp.exe --window-title "My App"
 [tui]: npm run dev
 
 ## Acceptance Criteria
@@ -86,13 +132,49 @@ Task files should use markdown with checklists and optional app type markers:
 
 ## Visual Verification
 
-The plugin can capture screenshots invisibly (no focus steal) to verify tasks:
+All screenshots are captured **invisibly** - no windows steal focus or interrupt your work:
 
-- **Webapp**: Headless Chrome/Edge browser
-- **GUI**: PowerShell hidden window + PrintWindow API
-- **TUI**: Hidden subprocess with output capture
+| App Type | Method |
+|----------|--------|
+| **Webapp** | Headless Chrome/Edge (`--headless=new`) |
+| **GUI** | PowerShell hidden window + PrintWindow API |
+| **TUI** | Hidden subprocess with output capture |
 
-Screenshots are sent to Claude CLI for verification against the task checklist.
+## Auto-Verification
+
+When enabled (`tool-reader: auto-verify` in CLAUDE.md), verification triggers after editing:
+
+- `*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `*.astro`
+- `*.css`, `*.scss`, `*.sass`, `*.less`
+- `*.xaml`, `*.axaml`, `*.fxml`, `*.qml`
+- Files in `**/cli/**`, `**/tui/**`
+
+### Auto-Fix Workflow
+
+If verification detects issues:
+1. Claude analyzes the screenshot
+2. Identifies the source file and line
+3. Proposes and applies a fix
+4. Re-verifies to confirm
+5. Reports results
+
+## Baseline Management
+
+Save baselines after major UI changes for regression testing:
+
+```
+.claude/
+└── baselines/
+    ├── manifest.json
+    ├── login-page_1705312200.png
+    └── dashboard_1705312300.png
+```
+
+## Requirements
+
+- **Claude CLI** (`claude` command) in PATH
+- **Edge or Chrome** browser for webapp screenshots
+- **PowerShell** for GUI window management (Windows)
 
 ## License
 
@@ -100,4 +182,4 @@ MIT License
 
 ## Author
 
-kevinmaynard20
+kevinMaynard20

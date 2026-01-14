@@ -1,9 +1,48 @@
 {
   "name": "tool-reader",
-  "version": "1.0.0",
-  "description": "Read and execute task definitions from .claude/*.md files",
+  "version": "2.0.0",
+  "description": "Visual verification skill for GUI, TUI, and webapp changes with auto-fix capabilities",
   "author": "kmaynardrpp",
-  "commands": ["list-tools", "run-tool", "verify-tool"],
+  "commands": [
+    "list-tools",
+    "run-tool",
+    "verify-tool",
+    "save-baseline",
+    "compare-baseline",
+    "setup-tool-reader"
+  ],
   "skills": ["tool-reader"],
-  "triggers": ["list tasks", "run task", "show tools", "check progress"]
+  "triggers": [
+    "list tasks",
+    "run task",
+    "show tools",
+    "check progress",
+    "verify UI",
+    "check UI changes",
+    "visual verification",
+    "save baseline",
+    "compare baseline",
+    "setup tool-reader",
+    "configure auto-verify"
+  ],
+  "proactive_triggers": {
+    "file_patterns": [
+      "**/*.tsx",
+      "**/*.jsx",
+      "**/*.vue",
+      "**/*.svelte",
+      "**/*.css",
+      "**/*.scss",
+      "**/*.xaml",
+      "**/*.qml"
+    ],
+    "requires_config": "tool-reader: auto-verify"
+  },
+  "capabilities": [
+    "invisible_screenshot",
+    "headless_browser",
+    "baseline_comparison",
+    "auto_fix",
+    "regression_testing"
+  ]
 }
