@@ -12,13 +12,19 @@ A Claude Code plugin that reads, executes, and visually verifies task definition
 
 ## Installation
 
-### Via Marketplace (recommended)
+### Step 1: Add the marketplace
 
 ```
-/plugin marketplace add kevinmaynard20/tool-reader
+/plugin marketplace add kevinmaynard20
 ```
 
-### From Local Path
+### Step 2: Install the plugin
+
+```
+/plugin install tool-reader@kevinmaynard20
+```
+
+### Alternative: From Local Path
 
 ```
 /plugin install /path/to/tool-reader
