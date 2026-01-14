@@ -1,22 +1,32 @@
 # Tool Reader - Claude Code Plugin
 
-A Claude Code plugin that reads and executes task definitions from `.claude/*.md` files.
+A Claude Code plugin that reads, executes, and visually verifies task definitions from `.claude/*.md` files.
 
 ## Features
 
 - **Scan for Tasks**: Discover all task definition files in `.claude/` directory
 - **Parse Checklists**: Parse `[ ]` and `[x]` checklist format
 - **Execute Tasks**: Run tasks with progress tracking
+- **Visual Verification**: Capture invisible screenshots and verify with Claude CLI
 - **Track Progress**: Report completion status and percentages
 
 ## Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/kmaynardrpp/tool-reader.git
+### Via /plugin command (recommended)
 
-# Or install via Claude Code
-/plugin install tool-reader@kmaynardrpp
+```
+# Install from GitHub
+/plugin install https://github.com/kevinMaynard20/tool-reader.git
+
+# Or install from local path
+/plugin install /path/to/tool-reader
+```
+
+### Manual Installation
+
+```bash
+# Clone the repository to your plugins directory
+git clone https://github.com/kevinMaynard20/tool-reader.git
 ```
 
 ## Commands
@@ -29,49 +39,42 @@ Scan the `.claude/` directory for task definition files and display them with th
 /list-tools
 ```
 
-Output:
-- Filename
-- Description (from first heading)
-- Completion status (if checklist present)
-
 ### /run-tool <name>
 
 Execute a task definition from `.claude/<name>.md`.
 
 ```
-/run-tool PLUGIN_TASK
+/run-tool my-task
+/run-tool my-task --verify        # Verify with screenshots
+/run-tool my-task --verify-each   # Verify after each item
 ```
-
-This will:
-1. Parse the `.md` file
-2. Extract checklist items
-3. Execute each uncompleted item
-4. Mark items as `[x]` when completed
-5. Report progress
 
 ### /verify-tool <name>
 
-Check completion status of a task file without executing.
+Visually verify task completion using invisible screenshots.
 
 ```
-/verify-tool PLUGIN_TASK
+/verify-tool my-task
+/verify-tool my-task --status   # Status only (no visual capture)
 ```
-
-Output:
-- Total items count
-- Completed items count
-- Remaining items count
-- Status: COMPLETE / IN_PROGRESS / NOT_STARTED
 
 ## Task File Format
 
-Task files should use markdown with checklists:
+Task files should use markdown with checklists and optional app type markers:
 
 ```markdown
 # Task Name
 
-## Description
-What this task does...
+## Application
+
+[webapp]: http://localhost:3000
+[gui]: myapp.exe
+[tui]: npm run dev
+
+## Acceptance Criteria
+
+- Page should load correctly
+- All buttons should be visible
 
 ## Checklist
 
@@ -80,10 +83,20 @@ What this task does...
 - [x] Completed step
 ```
 
+## Visual Verification
+
+The plugin can capture screenshots invisibly (no focus steal) to verify tasks:
+
+- **Webapp**: Headless Chrome/Edge browser
+- **GUI**: PowerShell hidden window + PrintWindow API
+- **TUI**: Hidden subprocess with output capture
+
+Screenshots are sent to Claude CLI for verification against the task checklist.
+
 ## License
 
-MIT License - See LICENSE for details.
+MIT License
 
 ## Author
 
-kmaynardrpp
+kevinMaynard20
