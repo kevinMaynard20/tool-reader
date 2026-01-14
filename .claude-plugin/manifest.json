@@ -1,0 +1,9 @@
+{
+  "name": "tool-reader",
+  "version": "1.0.0",
+  "description": "Read and execute task definitions from .claude/*.md files",
+  "author": "kmaynardrpp",
+  "commands": ["list-tools", "run-tool", "verify-tool"],
+  "skills": ["tool-reader"],
+  "triggers": ["list tasks", "run task", "show tools", "check progress"]
+}
