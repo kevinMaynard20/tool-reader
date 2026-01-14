@@ -1,6 +1,6 @@
 # /setup-tool-reader
 
-Initialize tool-reader in the current project. Configures CLAUDE.md with adapter settings and todo-based verification triggers.
+Initialize or update tool-reader configuration in the current project. This command is **idempotent** - run it multiple times safely.
 
 ## Usage
 
@@ -8,7 +8,7 @@ Initialize tool-reader in the current project. Configures CLAUDE.md with adapter
 /setup-tool-reader
 /setup-tool-reader --target <url|command>
 /setup-tool-reader --adapter <playwright|browser|tui|gui|cli|auto>
-/setup-tool-reader --capture-dir <path>
+/setup-tool-reader --tools <tool1,tool2,...>
 ```
 
 ## Parameters
@@ -17,50 +17,43 @@ Initialize tool-reader in the current project. Configures CLAUDE.md with adapter
 |-----------|----------|-------------|
 | `--target` | No | Default target (URL or command) |
 | `--adapter` | No | Preferred adapter (auto-detected if not specified) |
+| `--tools` | No | Comma-separated list of tools being tested |
 | `--capture-dir` | No | Directory for captures (default: .tool-reader/captures/) |
-| `--playwright` | No | Enable Playwright with settings |
 
-## Examples
+## What This Command Does
 
-```bash
-# Auto-detect everything
-/setup-tool-reader
+### First Run (No existing config)
+1. Detect project type from config files
+2. Add Tool Reader Configuration section to CLAUDE.md
+3. Create .tool-reader/ directory structure
+4. Create .claude/ directory for task files
 
-# Specify target
-/setup-tool-reader --target http://localhost:3000
-/setup-tool-reader --target "cargo run"
+### Subsequent Runs (Config exists)
+1. **Check existing configuration** in CLAUDE.md
+2. **Update targets** if new tools specified via --tools
+3. **Update adapter** if different one specified
+4. **Add missing sections** without duplicating existing ones
+5. **Preserve custom edits** user made to config
 
-# Specify adapter
-/setup-tool-reader --adapter playwright
-/setup-tool-reader --adapter tui
+## IMPORTANT: Idempotent Behavior
 
-# Configure capture directory
-/setup-tool-reader --capture-dir ./screenshots
+Before modifying CLAUDE.md, you MUST:
 
-# Full configuration
-/setup-tool-reader --target http://localhost:5173 --adapter playwright --capture-dir ./captures
+1. **Read existing CLAUDE.md** to check for `## Tool Reader Configuration` section
+2. **If section exists**: Update only what changed, don't duplicate
+3. **If section missing**: Add the full configuration block
+4. **If tools changed**: Update the tool-reader-targets list
+
+### Check Pattern
+```
+Look for: "## Tool Reader Configuration" in CLAUDE.md
+- Found: Parse existing config, merge changes
+- Not found: Add full config block
 ```
 
-## What It Does
+## Configuration Block to Add/Update
 
-1. **Detect Project Type** - Scan for package.json, Cargo.toml, etc.
-2. **Select Adapter** - Auto-detect or use specified adapter
-3. **Configure Capture Dir** - Set up capture storage location
-4. **Add to CLAUDE.md** - Append tool-reader configuration
-5. **Setup Todo Integration** - Configure verification triggers
-
-## Auto-Detection
-
-| Files Found | Project Type | Default Adapter |
-|-------------|--------------|-----------------|
-| package.json | webapp | playwright/browser |
-| Cargo.toml (ratatui) | tui | tui |
-| Cargo.toml (iced/egui) | gui | gui |
-| Cargo.toml (other) | cli | cli |
-| pyproject.toml | python | cli |
-| Other | unknown | cli |
-
-## Configuration Added to CLAUDE.md
+When adding to CLAUDE.md, use this exact format:
 
 ```markdown
 ---
@@ -68,76 +61,183 @@ Initialize tool-reader in the current project. Configures CLAUDE.md with adapter
 ## Tool Reader Configuration
 
 tool-reader: enabled
-tool-reader-adapter: auto
-tool-reader-target: http://localhost:3000
+tool-reader-adapter: {adapter}
+tool-reader-targets:
+  - {target1}
+  - {target2}
 tool-reader-capture-dir: .tool-reader/captures/
 
-### Adapters Available
+### MANDATORY: Visual Verification
 
-| Adapter | Targets | Features |
-|---------|---------|----------|
-| playwright | http://, https:// | Event-based, sequences |
-| browser | http://, https:// | Headless screenshot |
-| tui | tui:, commands | ANSI capture |
-| gui | window:, .exe | Window capture |
-| cli | commands | stdout/stderr |
+**YOU MUST run `/verify-tool` at these points:**
 
-### Read From Todos
+1. **After completing each phase** in a task file
+2. **When ANY checklist item contains "verify" or "visual"**
+3. **At final task completion**
+4. **When TodoWrite shows all phase items complete**
 
-Claude should check TodoWrite state for verification triggers:
+This is NOT optional. Visual verification confirms work is actually done.
+All verifications use Claude Sonnet for image analysis.
 
-**Run `/verify-tool` when:**
-1. All todos in phase (implement/test/build) completed
-2. Todo with "verify", "test", "check", "build" completed
-3. All todos marked complete
+### How to Verify
 
-**Phase Keywords:**
-- Implementation: implement, create, add, write
-- Testing: test, spec, unit, integration
-- Build: build, compile, bundle
-- Deploy: deploy, release, publish
+```bash
+/verify-tool <task-name> --target <url|command>
+```
 
-### .md File Instructions
+### Verification Triggers from Todos
 
-When following .md file instructions:
-1. Parse checklist items into TodoWrite
-2. Trigger verification at section boundaries
-3. Run final verification when complete
+When your TodoWrite state shows:
+- All items in a phase completed → RUN `/verify-tool`
+- Item with "verify", "test", "visual" completed → RUN `/verify-tool`
+- All items complete → RUN final `/verify-tool`
+
+### When Adding New Tools to Test
+
+If you add a new tool/target to test:
+1. Update this CLAUDE.md's `tool-reader-targets` list
+2. Create a task file in `.claude/<tool-name>_TASK.md`
+3. Run `/setup-tool-reader --tools <updated-list>` to refresh config
 
 ### Commands
 
-- `/verify-tool <task>` - Verify with auto-detected adapter
-- `/verify-tool <task> --adapter <type>` - Use specific adapter
-- `/verify-tool <task> --batch <dir>` - Batch verify captures
-- `/capture --target <target>` - Capture current state
-- `/verify-batch <dir>` - Batch verify captures
-- `/list-tools --captures` - List pending captures
+| Command | Purpose |
+|---------|---------|
+| `/verify-tool <task>` | Visual verification (REQUIRED at phase ends) |
+| `/verify-tool <task> --target <url>` | Verify specific target |
+| `/capture --target <url>` | Capture screenshot |
+| `/verify-batch <dir>` | Batch verify captures |
+| `/setup-tool-reader` | Update this configuration |
+```
+
+## Auto-Detection
+
+| Files Found | Project Type | Default Adapter |
+|-------------|--------------|-----------------|
+| package.json (vite/next/react) | webapp | playwright/browser |
+| package.json (express/fastify) | api | browser |
+| Cargo.toml (ratatui/tui-rs) | tui | tui |
+| Cargo.toml (iced/egui/tauri) | gui | gui |
+| Cargo.toml (other) | cli | cli |
+| pyproject.toml | python | cli |
+| *.sln, *.csproj | dotnet | gui/cli |
+
+## Examples
+
+```bash
+# First time setup - auto-detect everything
+/setup-tool-reader
+
+# Setup with specific target
+/setup-tool-reader --target http://localhost:3000
+
+# Setup for TUI testing
+/setup-tool-reader --adapter tui --target "cargo run"
+
+# Add multiple tools to test
+/setup-tool-reader --tools "http://localhost:3000,cargo run --bin mytui"
+
+# Update existing config with new tool
+/setup-tool-reader --tools "http://localhost:3000,http://localhost:8080"
+```
+
+## Implementation Steps
+
+When executing this command:
+
+1. **Read CLAUDE.md** (create if doesn't exist)
+2. **Check for existing config**:
+   ```
+   Search for "## Tool Reader Configuration"
+   ```
+3. **If exists - UPDATE mode**:
+   - Parse existing tool-reader-targets
+   - Merge with new --tools if provided
+   - Update adapter if --adapter provided
+   - Preserve user customizations
+   - DO NOT duplicate sections
+4. **If not exists - CREATE mode**:
+   - Detect project type
+   - Add full configuration block
+   - Create .tool-reader/ and .claude/ directories
+5. **Output summary** of what was added/updated
+
+## Update Logic (Pseudocode)
+
+```
+read CLAUDE.md content
+if "## Tool Reader Configuration" in content:
+    # UPDATE MODE
+    parse existing targets from tool-reader-targets
+    if --tools provided:
+        merge new tools with existing (no duplicates)
+        update tool-reader-targets section
+    if --adapter provided and different:
+        update tool-reader-adapter line
+    write updated CLAUDE.md
+    print "Updated existing configuration"
+else:
+    # CREATE MODE
+    detect project type
+    build full config block
+    append to CLAUDE.md
+    create directories
+    print "Created new configuration"
 ```
 
 ## Output
 
+### First Run
 ```
 ## Tool Reader Setup Complete
 
-**Project**: my-project
-**Type**: webapp
-**Adapter**: playwright
-**Target**: http://localhost:5173
-**Capture Dir**: .tool-reader/captures/
+Created new configuration in CLAUDE.md
 
-Configuration added to CLAUDE.md
+Project: my-project
+Type: webapp
+Adapter: playwright
+Targets:
+  - http://localhost:3000
+Capture Dir: .tool-reader/captures/
 
-Available commands:
-- /verify-tool <task>
-- /capture --target <url|cmd>
-- /verify-batch <capture-dir>
-- /list-tools --adapters
+Created directories:
+  - .tool-reader/captures/
+  - .claude/
+
+IMPORTANT: You MUST run /verify-tool after each phase!
+```
+
+### Subsequent Run (Update)
+```
+## Tool Reader Configuration Updated
+
+Changes:
+  - Added target: http://localhost:8080
+  - Adapter unchanged: playwright
+
+Current targets:
+  - http://localhost:3000
+  - http://localhost:8080
+
+No duplicate sections added.
+```
+
+### No Changes Needed
+```
+## Tool Reader Configuration
+
+No changes needed - configuration is up to date.
+
+Current targets:
+  - http://localhost:3000
+
+Run /verify-tool <task> to verify your work.
 ```
 
 ## Notes
 
-- Auto-detects project type from config files
-- Playwright preferred for web (falls back to browser)
-- Creates .tool-reader/captures/ for storing captures
-- Todo integration uses Claude's built-in TodoWrite
-- Configuration can be edited manually in CLAUDE.md
+- **Idempotent**: Safe to run multiple times
+- **Merges, doesn't duplicate**: Existing config is updated, not duplicated
+- **Preserves customizations**: User edits to CLAUDE.md are preserved
+- **Strict enforcement**: Config emphasizes MANDATORY verification
+- **Self-updating**: When new tools added, update CLAUDE.md targets
