@@ -1,14 +1,14 @@
-# /verify-batch
+# /tool-reader:verify-batch
 
 Verify multiple captures in a single Claude call.
 
 ## Usage
 
 ```bash
-/verify-batch <capture-dir>
-/verify-batch <capture-dir> --task <task-name>
-/verify-batch <capture-dir> --detailed
-/verify-batch <path1> <path2> ...
+/tool-reader:verify-batch <capture-dir>
+/tool-reader:verify-batch <capture-dir> --task <task-name>
+/tool-reader:verify-batch <capture-dir> --detailed
+/tool-reader:verify-batch <path1> <path2> ...
 ```
 
 ## Parameters
@@ -25,19 +25,19 @@ Verify multiple captures in a single Claude call.
 
 ```bash
 # Verify all captures in directory (summary)
-/verify-batch .tool-reader/captures/
+/tool-reader:verify-batch .tool-reader/captures/
 
 # Verify with task context
-/verify-batch .tool-reader/captures/ --task login-feature
+/tool-reader:verify-batch .tool-reader/captures/ --task login-feature
 
 # Detailed per-capture analysis
-/verify-batch .tool-reader/captures/ --detailed
+/tool-reader:verify-batch .tool-reader/captures/ --detailed
 
 # Verify specific files
-/verify-batch screenshot1.png screenshot2.png screenshot3.png
+/tool-reader:verify-batch screenshot1.png screenshot2.png screenshot3.png
 
 # JSON output for automation
-/verify-batch .tool-reader/captures/ --json
+/tool-reader:verify-batch .tool-reader/captures/ --json
 ```
 
 ## Output: Summary Mode (Default)
@@ -140,7 +140,7 @@ Recommendation: Increase viewport height or scroll before submit
 When --task is provided, verification uses the task's acceptance criteria:
 
 ```bash
-/verify-batch .tool-reader/captures/ --task login-feature
+/tool-reader:verify-batch .tool-reader/captures/ --task login-feature
 ```
 
 The task file (.claude/login-feature.md) provides:

@@ -1,15 +1,15 @@
-# /verify-tool
+# /tool-reader:verify-tool
 
 Verify task completion using the agnostic capture adapter system. Works with any target: webpages, TUIs, GUIs, or CLI tools.
 
 ## Usage
 
 ```bash
-/verify-tool <task-name>
-/verify-tool <task-name> --target <url|command|window>
-/verify-tool <task-name> --adapter <playwright|browser|tui|gui|cli|auto>
-/verify-tool <task-name> --batch <capture-dir>
-/verify-tool <task-name> --captures <path1> <path2> ...
+/tool-reader:verify-tool <task-name>
+/tool-reader:verify-tool <task-name> --target <url|command|window>
+/tool-reader:verify-tool <task-name> --adapter <playwright|browser|tui|gui|cli|auto>
+/tool-reader:verify-tool <task-name> --batch <capture-dir>
+/tool-reader:verify-tool <task-name> --captures <path1> <path2> ...
 ```
 
 ## Parameters
@@ -28,26 +28,26 @@ Verify task completion using the agnostic capture adapter system. Works with any
 
 ```bash
 # Auto-detect target from task file
-/verify-tool login-feature
+/tool-reader:verify-tool login-feature
 
 # Specify target explicitly
-/verify-tool login-feature --target http://localhost:3000
-/verify-tool tui-panel --target "cargo run"
-/verify-tool desktop-app --target window:MyApp
+/tool-reader:verify-tool login-feature --target http://localhost:3000
+/tool-reader:verify-tool tui-panel --target "cargo run"
+/tool-reader:verify-tool desktop-app --target window:MyApp
 
 # Use specific adapter
-/verify-tool web-feature --adapter playwright
-/verify-tool terminal-app --adapter tui
+/tool-reader:verify-tool web-feature --adapter playwright
+/tool-reader:verify-tool terminal-app --adapter tui
 
 # Batch verify captures
-/verify-tool user-flow --batch .tool-reader/captures/
-/verify-tool user-flow --batch .tool-reader/captures/ --detailed
+/tool-reader:verify-tool user-flow --batch .tool-reader/tool-reader:captures/
+/tool-reader:verify-tool user-flow --batch .tool-reader/tool-reader:captures/ --detailed
 
 # Verify specific captures
-/verify-tool login --captures screenshot1.png screenshot2.png
+/tool-reader:verify-tool login --captures screenshot1.png screenshot2.png
 
 # Check if todos indicate verification needed
-/verify-tool feature --check-todos
+/tool-reader:verify-tool feature --check-todos
 ```
 
 ## Adapters
@@ -87,10 +87,10 @@ When using Playwright adapter, capture on specific events:
 
 ```bash
 # Capture after clicking element
-/verify-tool login --adapter playwright --capture-on click:#submit-btn
+/tool-reader:verify-tool login --adapter playwright --capture-on click:#submit-btn
 
 # Capture sequence
-/verify-tool user-flow --adapter playwright --sequence "
+/tool-reader:verify-tool user-flow --adapter playwright --sequence "
   screenshot
   click:#login-btn
   input:#email=test@example.com
@@ -107,10 +107,10 @@ Verify multiple captures in a single Claude call:
 
 ```bash
 # Summary mode (default)
-/verify-tool feature --batch ./captures/
+/tool-reader:verify-tool feature --batch ./tool-reader:captures/
 
 # Detailed per-image analysis
-/verify-tool feature --batch ./captures/ --detailed
+/tool-reader:verify-tool feature --batch ./tool-reader:captures/ --detailed
 ```
 
 ### Batch Output (Summary)
@@ -151,7 +151,7 @@ Issues: - Button may require scroll
 Check if TodoWrite state indicates verification is needed:
 
 ```bash
-/verify-tool feature --check-todos
+/tool-reader:verify-tool feature --check-todos
 ```
 
 ### Verification Triggers
@@ -191,7 +191,7 @@ Accept external screenshots for verification:
 python capture_hook.py add screenshot.png --event "clicked login"
 
 # Verify all pending captures
-/verify-tool feature --batch .tool-reader/captures/
+/tool-reader:verify-tool feature --batch .tool-reader/tool-reader:captures/
 ```
 
 ## Notes

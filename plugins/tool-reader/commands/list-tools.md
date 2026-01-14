@@ -1,15 +1,15 @@
-# /list-tools
+# /tool-reader:list-tools
 
 List task files, available adapters, and pending captures.
 
 ## Usage
 
 ```bash
-/list-tools
-/list-tools --adapters
-/list-tools --captures
-/list-tools --captures --pending
-/list-tools --verbose
+/tool-reader:list-tools
+/tool-reader:list-tools --adapters
+/tool-reader:list-tools --captures
+/tool-reader:list-tools --captures --pending
+/tool-reader:list-tools --verbose
 ```
 
 ## Parameters
@@ -25,19 +25,19 @@ List task files, available adapters, and pending captures.
 
 ```bash
 # List task files (default)
-/list-tools
+/tool-reader:list-tools
 
 # List available adapters
-/list-tools --adapters
+/tool-reader:list-tools --adapters
 
 # List all captures
-/list-tools --captures
+/tool-reader:list-tools --captures
 
 # List only unverified captures
-/list-tools --captures --pending
+/tool-reader:list-tools --captures --pending
 
 # Verbose output with targets
-/list-tools --verbose
+/tool-reader:list-tools --verbose
 ```
 
 ## Output: Task Files (Default)
@@ -57,7 +57,7 @@ Total: 3 task files
 ## Output: Adapters
 
 ```bash
-/list-tools --adapters
+/tool-reader:list-tools --adapters
 ```
 
 ```
@@ -77,7 +77,7 @@ Note: Playwright requires: pip install playwright && playwright install
 ## Output: Captures
 
 ```bash
-/list-tools --captures
+/tool-reader:list-tools --captures
 ```
 
 ```
@@ -95,7 +95,7 @@ Total: 3 captures (2 pending verification)
 ## Output: Pending Captures
 
 ```bash
-/list-tools --captures --pending
+/tool-reader:list-tools --captures --pending
 ```
 
 ```
@@ -108,13 +108,13 @@ Total: 3 captures (2 pending verification)
 
 Total: 2 pending captures
 
-Run: /verify-batch .tool-reader/captures/ to verify all
+Run: /tool-reader:verify-batch .tool-reader/captures/ to verify all
 ```
 
 ## Output: Verbose
 
 ```bash
-/list-tools --verbose
+/tool-reader:list-tools --verbose
 ```
 
 ```

@@ -1,14 +1,14 @@
-# /setup-tool-reader
+# /tool-reader:setup-tool-reader
 
 Initialize or update tool-reader configuration in the current project. This command is **idempotent** - run it multiple times safely.
 
 ## Usage
 
 ```bash
-/setup-tool-reader
-/setup-tool-reader --target <url|command>
-/setup-tool-reader --adapter <playwright|browser|tui|gui|cli|auto>
-/setup-tool-reader --tools <tool1,tool2,...>
+/tool-reader:setup-tool-reader
+/tool-reader:setup-tool-reader --target <url|command>
+/tool-reader:setup-tool-reader --adapter <playwright|browser|tui|gui|cli|auto>
+/tool-reader:setup-tool-reader --tools <tool1,tool2,...>
 ```
 
 ## Parameters
@@ -18,7 +18,7 @@ Initialize or update tool-reader configuration in the current project. This comm
 | `--target` | No | Default target (URL or command) |
 | `--adapter` | No | Preferred adapter (auto-detected if not specified) |
 | `--tools` | No | Comma-separated list of tools being tested |
-| `--capture-dir` | No | Directory for captures (default: .tool-reader/captures/) |
+| `--capture-dir` | No | Directory for captures (default: .tool-reader/tool-reader:captures/) |
 
 ## What This Command Does
 
@@ -65,11 +65,11 @@ tool-reader-adapter: {adapter}
 tool-reader-targets:
   - {target1}
   - {target2}
-tool-reader-capture-dir: .tool-reader/captures/
+tool-reader-capture-dir: .tool-reader/tool-reader:captures/
 
 ### MANDATORY: Visual Verification
 
-**YOU MUST run `/verify-tool` at these points:**
+**YOU MUST run `/tool-reader:verify-tool` at these points:**
 
 1. **After completing each phase** in a task file
 2. **When ANY checklist item contains "verify" or "visual"**
@@ -82,32 +82,32 @@ All verifications use Claude Sonnet for image analysis.
 ### How to Verify
 
 ```bash
-/verify-tool <task-name> --target <url|command>
+/tool-reader:verify-tool <task-name> --target <url|command>
 ```
 
 ### Verification Triggers from Todos
 
 When your TodoWrite state shows:
-- All items in a phase completed → RUN `/verify-tool`
-- Item with "verify", "test", "visual" completed → RUN `/verify-tool`
-- All items complete → RUN final `/verify-tool`
+- All items in a phase completed → RUN `/tool-reader:verify-tool`
+- Item with "verify", "test", "visual" completed → RUN `/tool-reader:verify-tool`
+- All items complete → RUN final `/tool-reader:verify-tool`
 
 ### When Adding New Tools to Test
 
 If you add a new tool/target to test:
 1. Update this CLAUDE.md's `tool-reader-targets` list
 2. Create a task file in `.claude/<tool-name>_TASK.md`
-3. Run `/setup-tool-reader --tools <updated-list>` to refresh config
+3. Run `/tool-reader:setup-tool-reader --tools <updated-list>` to refresh config
 
 ### Commands
 
 | Command | Purpose |
 |---------|---------|
-| `/verify-tool <task>` | Visual verification (REQUIRED at phase ends) |
-| `/verify-tool <task> --target <url>` | Verify specific target |
-| `/capture --target <url>` | Capture screenshot |
-| `/verify-batch <dir>` | Batch verify captures |
-| `/setup-tool-reader` | Update this configuration |
+| `/tool-reader:verify-tool <task>` | Visual verification (REQUIRED at phase ends) |
+| `/tool-reader:verify-tool <task> --target <url>` | Verify specific target |
+| `/tool-reader:capture --target <url>` | Capture screenshot |
+| `/tool-reader:verify-batch <dir>` | Batch verify captures |
+| `/tool-reader:setup-tool-reader` | Update this configuration |
 ```
 
 ## Auto-Detection
@@ -126,19 +126,19 @@ If you add a new tool/target to test:
 
 ```bash
 # First time setup - auto-detect everything
-/setup-tool-reader
+/tool-reader:setup-tool-reader
 
 # Setup with specific target
-/setup-tool-reader --target http://localhost:3000
+/tool-reader:setup-tool-reader --target http://localhost:3000
 
 # Setup for TUI testing
-/setup-tool-reader --adapter tui --target "cargo run"
+/tool-reader:setup-tool-reader --adapter tui --target "cargo run"
 
 # Add multiple tools to test
-/setup-tool-reader --tools "http://localhost:3000,cargo run --bin mytui"
+/tool-reader:setup-tool-reader --tools "http://localhost:3000,cargo run --bin mytui"
 
 # Update existing config with new tool
-/setup-tool-reader --tools "http://localhost:3000,http://localhost:8080"
+/tool-reader:setup-tool-reader --tools "http://localhost:3000,http://localhost:8080"
 ```
 
 ## Implementation Steps
@@ -198,13 +198,13 @@ Type: webapp
 Adapter: playwright
 Targets:
   - http://localhost:3000
-Capture Dir: .tool-reader/captures/
+Capture Dir: .tool-reader/tool-reader:captures/
 
 Created directories:
-  - .tool-reader/captures/
+  - .tool-reader/tool-reader:captures/
   - .claude/
 
-IMPORTANT: You MUST run /verify-tool after each phase!
+IMPORTANT: You MUST run /tool-reader:verify-tool after each phase!
 ```
 
 ### Subsequent Run (Update)
@@ -231,7 +231,7 @@ No changes needed - configuration is up to date.
 Current targets:
   - http://localhost:3000
 
-Run /verify-tool <task> to verify your work.
+Run /tool-reader:verify-tool <task> to verify your work.
 ```
 
 ## Notes

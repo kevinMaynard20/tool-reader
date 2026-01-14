@@ -1,15 +1,15 @@
-# /run-tool
+# /tool-reader:run-tool
 
 Execute a task definition from `.claude/<name>.md` with optional capture and verification.
 
 ## Usage
 
 ```bash
-/run-tool <name>
-/run-tool <name> --verify
-/run-tool <name> --capture
-/run-tool <name> --capture-on <events>
-/run-tool <name> --adapter <type>
+/tool-reader:run-tool <name>
+/tool-reader:run-tool <name> --verify
+/tool-reader:run-tool <name> --capture
+/tool-reader:run-tool <name> --capture-on <events>
+/tool-reader:run-tool <name> --adapter <type>
 ```
 
 ## Parameters
@@ -28,29 +28,29 @@ Execute a task definition from `.claude/<name>.md` with optional capture and ver
 
 ```bash
 # Basic execution
-/run-tool PLUGIN_TASK
+/tool-reader:run-tool PLUGIN_TASK
 
 # Run and verify at end
-/run-tool webapp-task --verify
+/tool-reader:run-tool webapp-task --verify
 
 # Run with capture enabled
-/run-tool user-flow --capture
+/tool-reader:run-tool user-flow --capture
 
 # Capture on specific events
-/run-tool user-flow --capture-on click,navigate,input
+/tool-reader:run-tool user-flow --capture-on click,navigate,input
 
 # Use specific adapter
-/run-tool webapp-task --adapter playwright
+/tool-reader:run-tool webapp-task --adapter playwright
 
 # Run, capture, and batch verify
-/run-tool user-flow --capture --batch
+/tool-reader:run-tool user-flow --capture --batch
 ```
 
 ## Execution Flow
 
 ### Standard Execution
 ```
-> /run-tool PLUGIN_TASK
+> /tool-reader:run-tool PLUGIN_TASK
 
 Reading task: .claude/PLUGIN_TASK.md
 Found 25 items (12 completed, 13 remaining)
@@ -72,7 +72,7 @@ Task completed: 25/25 items done
 
 ### With Capture (--capture)
 ```
-> /run-tool user-flow --capture
+> /tool-reader:run-tool user-flow --capture
 
 Reading task: .claude/user-flow.md
 Found 10 items (5 completed, 5 remaining)
@@ -93,12 +93,12 @@ Executing with capture enabled:
 ...
 
 Captures saved: 5 files in .tool-reader/captures/
-Run: /verify-batch .tool-reader/captures/ to verify all
+Run: /tool-reader:verify-batch .tool-reader/captures/ to verify all
 ```
 
 ### With Verify (--verify)
 ```
-> /run-tool webapp-task --verify
+> /tool-reader:run-tool webapp-task --verify
 
 Reading task: .claude/webapp-task.md
 Found 10 items (5 completed, 5 remaining)
@@ -122,7 +122,7 @@ Capture: .tool-reader/captures/webapp-task_123.png
 
 ### Capture and Batch Verify (--capture --batch)
 ```
-> /run-tool user-flow --capture --batch
+> /tool-reader:run-tool user-flow --capture --batch
 
 Reading task: .claude/user-flow.md
 Executing with capture and batch verification...
@@ -153,9 +153,9 @@ Issues:
 
 Override with `--adapter`:
 ```bash
-/run-tool task --adapter playwright
-/run-tool task --adapter tui
-/run-tool task --adapter cli
+/tool-reader:run-tool task --adapter playwright
+/tool-reader:run-tool task --adapter tui
+/tool-reader:run-tool task --adapter cli
 ```
 
 ## Capture Events
@@ -164,13 +164,13 @@ With `--capture-on`, specify when to capture:
 
 ```bash
 # Capture on clicks and navigation
-/run-tool task --capture-on click,navigate
+/tool-reader:run-tool task --capture-on click,navigate
 
 # Capture on all inputs
-/run-tool task --capture-on input
+/tool-reader:run-tool task --capture-on input
 
 # Capture on specific selector
-/run-tool task --capture-on "click:#submit-btn"
+/tool-reader:run-tool task --capture-on "click:#submit-btn"
 ```
 
 Available events:
