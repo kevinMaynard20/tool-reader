@@ -9,8 +9,8 @@
   "plugins": [
     {
       "name": "tool-reader",
-      "description": "Read and execute task definitions from .claude/*.md files",
-      "version": "1.0.0",
+      "description": "Visual verification skill for GUI, TUI, and webapp changes with auto-fix capabilities",
+      "version": "2.0.0",
       "author": {
         "name": "Kevin Maynard",
         "email": "kevinmaynard20@users.noreply.github.com"
