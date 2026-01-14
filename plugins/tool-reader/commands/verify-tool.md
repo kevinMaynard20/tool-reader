@@ -1,15 +1,92 @@
 # /tool-reader:verify-tool
 
-Verify task completion using the agnostic capture adapter system. Works with any target: webpages, TUIs, GUIs, or CLI tools.
+Visual verification using ACTUAL SCREENSHOTS analyzed by Claude Sonnet.
+
+## CRITICAL: How This Works
+
+**YOU MUST run the visual_verifier.py script. DO NOT manually curl HTML or fake verification.**
+
+```bash
+# Run the Python script - this captures a REAL screenshot
+python <plugin-path>/scripts/visual_verifier.py <task-file> --target <url>
+```
+
+The script will:
+1. Launch headless Chrome/Edge (invisible)
+2. Capture an actual PNG screenshot
+3. Pass the PNG to `claude --model sonnet` for visual analysis
+4. Return verification results
+
+**NEVER:**
+- Use `curl` to save HTML (this is NOT visual verification)
+- Manually analyze HTML source
+- Skip the screenshot capture step
+- Fake verification results
 
 ## Usage
 
 ```bash
 /tool-reader:verify-tool <task-name>
-/tool-reader:verify-tool <task-name> --target <url|command|window>
-/tool-reader:verify-tool <task-name> --adapter <playwright|browser|tui|gui|cli|auto>
-/tool-reader:verify-tool <task-name> --batch <capture-dir>
-/tool-reader:verify-tool <task-name> --captures <path1> <path2> ...
+/tool-reader:verify-tool <task-name> --target <url>
+```
+
+## Implementation Steps
+
+When this command is invoked, execute these steps:
+
+### Step 1: Locate the script
+```bash
+# The script is in the tool-reader plugin directory
+# Usually: plugins/tool-reader/scripts/visual_verifier.py
+```
+
+### Step 2: Run the script
+```bash
+python visual_verifier.py ".claude/<task-name>.md" --target "http://localhost:3000"
+```
+
+### Step 3: The script captures screenshot
+The script uses headless browser to capture actual PNG:
+- Uses Edge or Chrome in `--headless=new` mode
+- Saves screenshot to temp directory
+- Screenshot is a real rendered image, NOT HTML
+
+### Step 4: Script sends to Sonnet
+The script calls:
+```bash
+claude -p "<verification prompt with image path>" --model sonnet
+```
+
+### Step 5: Return results
+Script outputs verification results showing which items passed/failed.
+
+## Example Execution
+
+```
+> /tool-reader:verify-tool API_FEATURE_TASK --target http://localhost:3000
+
+Running visual verification...
+  Script: visual_verifier.py
+  Task: .claude/API_FEATURE_TASK.md
+  Target: http://localhost:3000
+
+Step 1: Capturing screenshot with headless browser...
+  Browser: Edge (headless)
+  Screenshot: C:\Users\...\screenshot_1234.png
+  Size: 1280x720
+
+Step 2: Sending to Claude Sonnet for analysis...
+  Model: sonnet
+  Image: screenshot_1234.png
+
+Step 3: Verification Results:
+==================================================
+  PASSED: Search form visible on dashboard
+  PASSED: Search results section present
+  PASSED: Input field and button rendered
+==================================================
+  Overall: 3/3 items verified visually
+  Screenshot saved: .tool-reader/captures/API_FEATURE_TASK_1234.png
 ```
 
 ## Parameters
@@ -17,188 +94,59 @@ Verify task completion using the agnostic capture adapter system. Works with any
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `task-name` | Yes | Task file name in .claude/ directory |
-| `--target` | No | Target to verify (URL, command, window name) |
-| `--adapter` | No | Capture adapter (auto-detected if not specified) |
-| `--batch` | No | Directory of captures to batch verify |
-| `--captures` | No | Specific capture files to verify |
-| `--detailed` | No | Include per-capture analysis |
-| `--check-todos` | No | Check if TodoWrite state indicates verification needed |
+| `--target` | No | URL to capture (reads from task file if not specified) |
 
-## Examples
+## Script Location
 
-```bash
-# Auto-detect target from task file
-/tool-reader:verify-tool login-feature
-
-# Specify target explicitly
-/tool-reader:verify-tool login-feature --target http://localhost:3000
-/tool-reader:verify-tool tui-panel --target "cargo run"
-/tool-reader:verify-tool desktop-app --target window:MyApp
-
-# Use specific adapter
-/tool-reader:verify-tool web-feature --adapter playwright
-/tool-reader:verify-tool terminal-app --adapter tui
-
-# Batch verify captures
-/tool-reader:verify-tool user-flow --batch .tool-reader/tool-reader:captures/
-/tool-reader:verify-tool user-flow --batch .tool-reader/tool-reader:captures/ --detailed
-
-# Verify specific captures
-/tool-reader:verify-tool login --captures screenshot1.png screenshot2.png
-
-# Check if todos indicate verification needed
-/tool-reader:verify-tool feature --check-todos
+The visual_verifier.py script should be at:
+```
+<project>/.claude-plugins/tool-reader/scripts/visual_verifier.py
+```
+or
+```
+<plugins-dir>/tool-reader/plugins/tool-reader/scripts/visual_verifier.py
 ```
 
-## Adapters
+If the script is not found, inform the user to install the tool-reader plugin.
 
-| Adapter | Target Types | Features |
-|---------|--------------|----------|
-| `playwright` | http://, https:// | Event-based, sequences, DOM capture |
-| `browser` | http://, https:// | Headless screenshot (fallback) |
-| `tui` | tui:, terminal apps | ANSI capture, input, keys |
-| `gui` | window:, .exe | Window screenshot |
-| `cli` | commands | stdout/stderr capture |
-| `auto` | Any | Auto-detect based on target |
+## What the Script Does (visual_verifier.py)
 
-## Target Formats
+```python
+# 1. Find browser (Edge or Chrome)
+browser_path = find_browser()  # Returns path to msedge.exe or chrome.exe
 
-```bash
-# Web targets
---target http://localhost:3000
---target https://example.com
+# 2. Capture screenshot with headless browser
+# Uses --headless=new --screenshot flags
+capture_screenshot_webapp(url, output_path)  # Saves actual PNG
 
-# TUI targets
---target "cargo run"
---target "tui:npm run dev"
+# 3. Call Claude CLI with Sonnet model
+subprocess.run([
+    "claude", "-p", prompt,
+    "--output-format", "text",
+    "--model", "sonnet"  # MUST use Sonnet for image analysis
+])
 
-# GUI targets
---target window:MyAppTitle
---target "gui:app.exe|Window Title"
-
-# CLI targets
---target "cli:npm test"
---target "python script.py"
+# 4. Parse and return results
 ```
 
-## Event-Based Capture
+## Troubleshooting
 
-When using Playwright adapter, capture on specific events:
+**"Screenshot not created"**
+- Ensure Edge or Chrome is installed
+- Check browser path in script output
 
-```bash
-# Capture after clicking element
-/tool-reader:verify-tool login --adapter playwright --capture-on click:#submit-btn
+**"Claude CLI not found"**
+- Ensure `claude` is in PATH
+- Run `claude --version` to verify
 
-# Capture sequence
-/tool-reader:verify-tool user-flow --adapter playwright --sequence "
-  screenshot
-  click:#login-btn
-  input:#email=test@example.com
-  input:#password=secret
-  click:#submit
-  navigate
-  screenshot
-"
-```
-
-## Batch Verification
-
-Verify multiple captures in a single Claude call:
-
-```bash
-# Summary mode (default)
-/tool-reader:verify-tool feature --batch ./tool-reader:captures/
-
-# Detailed per-image analysis
-/tool-reader:verify-tool feature --batch ./tool-reader:captures/ --detailed
-```
-
-### Batch Output (Summary)
-
-```
-BATCH VERIFICATION: 5 captures
-==================================================
-  PASSED:    4/5
-  FAILED:    1/5
-
-Issues Found:
-  - Capture 3: Submit button not visible
-
-Overall: partial
-Recommendation: Fix viewport scroll issue
-```
-
-### Batch Output (Detailed)
-
-```
-### Capture 1: login_initial.png
-Status: PASS
-Evidence: Login form visible with email/password fields
-Verified: [x] Login page renders
-
-### Capture 2: login_filled.png
-Status: PASS
-Evidence: Form fields populated correctly
-
-### Capture 3: login_submit.png
-Status: FAIL
-Evidence: Submit button below viewport
-Issues: - Button may require scroll
-```
-
-## Todo Integration
-
-Check if TodoWrite state indicates verification is needed:
-
-```bash
-/tool-reader:verify-tool feature --check-todos
-```
-
-### Verification Triggers
-
-Verification auto-triggers when:
-1. All todos in a phase (implement/test/build) completed
-2. Todo containing "verify", "test", "check", "build" completed
-3. All todos marked complete (final verification)
-
-## Task File Format
-
-```markdown
-# My Feature Task
-
-## Target
-[webapp]: http://localhost:3000
-# or: [tui]: cargo run
-# or: [gui]: app.exe|Window Title
-
-## Acceptance Criteria
-- Login form displays email and password fields
-- Submit button is visible and clickable
-- Error messages appear in red
-
-## Checklist
-- [ ] Login page renders correctly
-- [ ] Form validates input
-- [x] Already completed item
-```
-
-## Integration with Capture Hook
-
-Accept external screenshots for verification:
-
-```bash
-# Add external capture
-python capture_hook.py add screenshot.png --event "clicked login"
-
-# Verify all pending captures
-/tool-reader:verify-tool feature --batch .tool-reader/tool-reader:captures/
-```
+**"Sonnet model error"**
+- Ensure you have access to Sonnet model
+- Check Claude CLI authentication
 
 ## Notes
 
-- **All picture verifications use Claude Sonnet model** for consistent, high-quality analysis
-- Adapters auto-detect based on target format
-- Playwright adapter preferred for web (falls back to browser if unavailable)
-- Batch verification sends all captures in single Claude call
-- Use `--detailed` for per-capture analysis
-- Todo integration reads from Claude's TodoWrite state
+- **ALWAYS captures actual PNG screenshot** - never HTML
+- **ALWAYS uses Claude Sonnet** for image analysis
+- Screenshot saved to .tool-reader/captures/ for reference
+- Headless browser runs invisibly (no window popup)
+- Works with Edge or Chrome on Windows
