@@ -58,10 +58,15 @@ python "{visual-verifier-script}" "<task-file>" --items "<items to verify>"
 
 ### What the Script Does
 
-1. Launches headless Edge/Chrome (invisible)
-2. Captures ACTUAL PNG screenshot
+1. Launches headless Edge/Chrome (COMPLETELY INVISIBLE - no window popup)
+2. Captures ACTUAL PNG screenshot (no user disruption)
 3. Sends PNG to Claude Sonnet for analysis
 4. Returns pass/fail results
+
+**All captures run invisibly:**
+- Webapp: Headless browser (--headless=new), no window shown
+- GUI: Minimized window, no focus steal, PrintWindow API
+- TUI: Background subprocess, CREATE_NO_WINDOW flag
 
 ### CRITICAL RULES
 

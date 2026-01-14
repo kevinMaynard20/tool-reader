@@ -12,10 +12,15 @@ python <plugin-path>/scripts/visual_verifier.py <task-file> --target <url>
 ```
 
 The script will:
-1. Launch headless Chrome/Edge (invisible)
-2. Capture an actual PNG screenshot
+1. Launch headless Chrome/Edge (COMPLETELY INVISIBLE - no window popup)
+2. Capture an actual PNG screenshot (no user disruption)
 3. Pass the PNG to `claude --model sonnet` for visual analysis
 4. Return verification results
+
+**All captures run invisibly:**
+- Webapp: Headless browser (--headless=new), no window shown
+- GUI: Minimized window, no focus steal, PrintWindow API
+- TUI: Background subprocess, CREATE_NO_WINDOW flag
 
 **NEVER:**
 - Use `curl` to save HTML (this is NOT visual verification)
