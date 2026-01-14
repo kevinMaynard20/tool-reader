@@ -12,21 +12,16 @@ A Claude Code plugin that reads, executes, and visually verifies task definition
 
 ## Installation
 
-### Via /plugin command (recommended)
+### Via Marketplace (recommended)
 
 ```
-# Install from GitHub
-/plugin install https://github.com/kevinMaynard20/tool-reader.git
+/plugin marketplace add kevinmaynard20/tool-reader
+```
 
-# Or install from local path
+### From Local Path
+
+```
 /plugin install /path/to/tool-reader
-```
-
-### Manual Installation
-
-```bash
-# Clone the repository to your plugins directory
-git clone https://github.com/kevinMaynard20/tool-reader.git
 ```
 
 ## Commands
@@ -99,4 +94,4 @@ MIT License
 
 ## Author
 
-kevinMaynard20
+kevinmaynard20
