@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "tool-reader",
-  "description": "Visual verification for GUI, TUI, and webapp testing with agnostic adapter system and Sonnet-powered analysis",
+  "description": "Visual verification with invisible screenshots - captures actual PNG via headless browser, analyzes with Claude Sonnet",
   "owner": {
     "name": "Kevin Maynard",
     "email": "kevinmaynard20@users.noreply.github.com"
@@ -9,8 +9,8 @@
   "plugins": [
     {
       "name": "tool-reader",
-      "description": "Visual verification skill with agnostic adapters (Playwright, browser, TUI, GUI, CLI), batch verification, idempotent setup, and mandatory phase-end verification using Claude Sonnet",
-      "version": "2.0.1",
+      "description": "Automatic visual verification at phase boundaries. Captures actual PNG screenshots invisibly (headless browser, no popup). Sends to Claude Sonnet for analysis. Never curls HTML - always real screenshots.",
+      "version": "2.0.2",
       "author": {
         "name": "Kevin Maynard",
         "email": "kevinmaynard20@users.noreply.github.com"
@@ -22,12 +22,13 @@
         "visual-verification",
         "screenshot",
         "testing",
-        "playwright",
+        "headless",
+        "invisible",
         "tui",
         "gui",
         "webapp",
         "sonnet",
-        "batch-verify"
+        "automatic-verification"
       ]
     }
   ]

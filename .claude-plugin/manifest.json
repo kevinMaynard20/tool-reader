@@ -1,7 +1,7 @@
 {
   "name": "tool-reader",
-  "version": "2.0.1",
-  "description": "Visual verification skill for GUI, TUI, and webapp changes with agnostic adapter system and Sonnet-powered analysis",
+  "version": "2.0.2",
+  "description": "Visual verification with invisible screenshots - captures actual PNG via headless browser, analyzes with Claude Sonnet",
   "author": "kevinMaynard20",
   "commands": [
     "list-tools",
@@ -50,6 +50,7 @@
     "regression_testing",
     "batch_verification",
     "playwright_integration",
-    "sonnet_analysis"
+    "sonnet_analysis",
+    "automatic_phase_verification"
   ]
 }
