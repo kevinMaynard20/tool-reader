@@ -21,7 +21,7 @@ A Claude Code skill that automatically verifies GUI, TUI, and webapp changes wit
 ### Step 2: Install the plugin
 
 ```
-/plugin install tool-reader@kevinMaynard20-tool-reader
+/plugin install tool-reader@kevinMaynard20
 ```
 
 ## Quick Start
