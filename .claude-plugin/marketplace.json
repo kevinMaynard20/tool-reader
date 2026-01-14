@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "tool-reader",
+  "description": "Read and execute task definitions from .claude/*.md files",
+  "owner": {
+    "name": "Kevin Maynard",
+    "email": "kevinmaynard20@users.noreply.github.com"
+  },
+  "plugins": [
+    {
+      "name": "tool-reader",
+      "description": "Read and execute task definitions from .claude/*.md files",
+      "version": "1.0.0",
+      "author": {
+        "name": "Kevin Maynard",
+        "email": "kevinmaynard20@users.noreply.github.com"
+      },
+      "source": "./plugins/tool-reader",
+      "category": "productivity",
+      "homepage": "https://github.com/kevinmaynard20/tool-reader"
+    }
+  ]
+}
