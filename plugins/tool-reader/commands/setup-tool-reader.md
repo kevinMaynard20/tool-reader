@@ -40,20 +40,54 @@ visual-verifier-script: ~/.claude/plugins/tool-reader/plugins/tool-reader/script
 
 ---
 
-## AUTOMATIC VISUAL VERIFICATION
+## VISUAL VERIFICATION REQUIREMENTS
 
-**YOU MUST AUTOMATICALLY run visual verification at these points:**
+### CRITICAL: Verification Must Be a Tracked Task
 
-1. **After completing any phase** (Implementation, UI, Testing, etc.)
+**Every visual verification MUST be tracked as a separate task:**
+
+**Option 1: Add to TodoWrite**
+```
+TodoWrite: [
+  ...existing todos...,
+  { "content": "Run visual verification for <phase>", "status": "pending", "activeForm": "Running visual verification" }
+]
+```
+
+**Option 2: Create verification task file**
+Create `.claude/VERIFY_<feature>.md`:
+```markdown
+# Visual Verification: <feature>
+
+## Target
+[webapp]: {target}
+
+## Items to Verify
+- [ ] <item 1>
+- [ ] <item 2>
+
+## Run Command
+python "{visual-verifier-script}" ".claude/VERIFY_<feature>.md" --items "<items>"
+```
+
+### When to Create Verification Tasks
+
+Create a verification task:
+1. **After completing any phase** (Implementation, UI, Testing)
 2. **After completing ALL items** in a task file
-3. **When target is a webapp/URL** - verify the UI renders correctly
+3. **Before marking a feature as done**
 
 ### How to Run Visual Verification
 
-Execute this Python script:
+Execute this Python script (as a tracked task):
 
 ```bash
-python "{visual-verifier-script}" "<task-file>" --items "<items to verify>"
+python "~/.claude/plugins/tool-reader/plugins/tool-reader/scripts/visual_verifier.py" "<task-file>" --items "<items to verify>"
+```
+
+Windows:
+```bash
+python "%USERPROFILE%\.claude\plugins\tool-reader\plugins\tool-reader\scripts\visual_verifier.py" "<task-file>" --items "<items to verify>"
 ```
 
 ### What the Script Does
@@ -68,30 +102,28 @@ python "{visual-verifier-script}" "<task-file>" --items "<items to verify>"
 - GUI: Minimized window, no focus steal, PrintWindow API
 - TUI: Background subprocess, CREATE_NO_WINDOW flag
 
-### CRITICAL RULES
+### STRICT RULES
 
 **YOU MUST:**
-- Run the script automatically after each phase completes
-- Run the script when all task items are done
+- Create a tracked task (TodoWrite or .md file) for each verification
+- Run the Python script as that tracked task
+- Mark verification task complete only after script runs
 - Let the script capture an actual PNG screenshot
 - Let Sonnet analyze the image
 
 **YOU MUST NEVER:**
+- Run verification without tracking it as a task
 - Use `curl` to save HTML (NOT visual verification)
 - Analyze HTML source (NOT visual verification)
 - Skip verification after completing a phase
 - Fake verification results
+- Claim verification done without running the script
 
 ---
 
-## Phase Detection
+## To Remove Tool Reader
 
-When working on task files, detect phases by looking for:
-- Headers like "### Implementation Phase", "### UI Phase", "### Testing Phase"
-- Groups of related checklist items
-- Section boundaries
-
-After completing all items in a phase, AUTOMATICALLY run visual verification.
+Run `/tool-reader:stop-tool-reader` to remove this configuration from CLAUDE.md.
 ```
 
 ## Auto-Detection
@@ -129,18 +161,20 @@ Type: webapp
 Adapter: browser
 Target: http://localhost:3000
 
-Visual verification will run AUTOMATICALLY:
-- After each phase completes
-- When all items are done
-- Using actual PNG screenshots analyzed by Sonnet
+Visual verification MUST be tracked as a task:
+- Add to TodoWrite, OR
+- Create .claude/VERIFY_<feature>.md
 
 Script: ~/.claude/plugins/tool-reader/plugins/tool-reader/scripts/visual_verifier.py
+
+To remove: /tool-reader:stop-tool-reader
 ```
 
 ## Notes
 
 - **Idempotent**: Safe to run multiple times
-- **Task files stay generic** - no tool-reader references needed in task files
-- **CLAUDE.md triggers verification** - tells Claude when to auto-verify
+- **Verification is a tracked task** - must be in TodoWrite or .md file
+- **Task files stay generic** - no tool-reader references needed
 - **Actual screenshots** - script captures PNG, NOT curl/HTML
 - **Sonnet analyzes** - image sent to Claude Sonnet model
+- **To remove**: Run /tool-reader:stop-tool-reader

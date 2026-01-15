@@ -1,6 +1,6 @@
 {
   "name": "tool-reader",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Visual verification with invisible screenshots - captures actual PNG via headless browser, analyzes with Claude Sonnet",
   "author": "kevinMaynard20",
   "commands": [
@@ -11,7 +11,8 @@
     "capture",
     "save-baseline",
     "compare-baseline",
-    "setup-tool-reader"
+    "setup-tool-reader",
+    "stop-tool-reader"
   ],
   "skills": ["tool-reader"],
   "triggers": [
@@ -25,6 +26,9 @@
     "save baseline",
     "compare baseline",
     "setup tool-reader",
+    "stop tool-reader",
+    "disable tool-reader",
+    "remove tool-reader",
     "configure auto-verify",
     "batch verify",
     "capture screenshot"
@@ -51,6 +55,7 @@
     "batch_verification",
     "playwright_integration",
     "sonnet_analysis",
-    "automatic_phase_verification"
+    "automatic_phase_verification",
+    "tracked_verification_tasks"
   ]
 }

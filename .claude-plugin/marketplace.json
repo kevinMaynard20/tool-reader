@@ -9,8 +9,8 @@
   "plugins": [
     {
       "name": "tool-reader",
-      "description": "Automatic visual verification at phase boundaries. Captures actual PNG screenshots invisibly (headless browser, no popup). Sends to Claude Sonnet for analysis. Never curls HTML - always real screenshots.",
-      "version": "2.0.3",
+      "description": "Visual verification as tracked tasks. Captures actual PNG screenshots invisibly (headless browser). Sends to Claude Sonnet. Verification must be TodoWrite item or .md file - never skipped.",
+      "version": "2.0.4",
       "author": {
         "name": "Kevin Maynard",
         "email": "kevinmaynard20@users.noreply.github.com"
