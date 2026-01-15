@@ -135,11 +135,57 @@ subprocess.run([
 # 4. Parse and return results
 ```
 
+## Integration with Existing Testing Tools
+
+If your project has existing Playwright, pytest, or other testing infrastructure, you can integrate them with verify-tool:
+
+### Using Existing Playwright Tests
+
+```bash
+# Run your existing Playwright tests with screenshot output
+npx playwright test --screenshot=on
+
+# Then verify the generated screenshots
+/tool-reader:verify-batch ./test-results/ --task <task-name>
+```
+
+### Using Existing pytest-playwright
+
+```bash
+# Run pytest with your configured flags
+pytest tests/ --screenshot=on --output=./test-results
+
+# Verify the captures
+/tool-reader:verify-batch ./test-results/
+```
+
+### Registering External Screenshots
+
+If your tests generate screenshots, register them with tool-reader:
+
+```bash
+# Add a single screenshot
+/tool-reader:capture --add ./path/to/screenshot.png --event "After login"
+
+# Then verify
+/tool-reader:verify-tool <task-name>
+```
+
+### Using Project-Specific CLI Flags
+
+Your project may have custom test commands defined in:
+- `package.json` scripts section
+- `pyproject.toml` [tool.pytest.ini_options]
+- `playwright.config.ts`
+
+Use whatever flags your project's testing tools accept. Tool-reader will verify the output.
+
 ## Troubleshooting
 
 **"Screenshot not created"**
 - Ensure Edge or Chrome is installed
 - Check browser path in script output
+- If using existing Playwright, ensure browsers are installed: `npx playwright install`
 
 **"Claude CLI not found"**
 - Ensure `claude` is in PATH
@@ -149,6 +195,11 @@ subprocess.run([
 - Ensure you have access to Sonnet model
 - Check Claude CLI authentication
 
+**"Playwright/testing tool not found"**
+- Check if tool-reader-auto-install is set in CLAUDE.md
+- Run: `npm install -D @playwright/test && npx playwright install`
+- Or for Python: `pip install playwright && playwright install`
+
 ## Notes
 
 - **ALWAYS captures actual PNG screenshot** - never HTML
@@ -156,3 +207,5 @@ subprocess.run([
 - Screenshot saved to .tool-reader/captures/ for reference
 - Headless browser runs invisibly (no window popup)
 - Works with Edge or Chrome on Windows
+- **Integrates with existing testing tools** - use your project's Playwright/pytest if available
+- **Respects project CLI flags** - use whatever test commands your project defines
