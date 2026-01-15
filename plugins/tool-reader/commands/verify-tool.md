@@ -103,13 +103,14 @@ Step 3: Verification Results:
 
 ## Script Location
 
-The visual_verifier.py script should be at:
+The visual_verifier.py script is at:
 ```
-<project>/.claude-plugins/tool-reader/scripts/visual_verifier.py
+~/.claude/plugins/tool-reader/plugins/tool-reader/scripts/visual_verifier.py
 ```
-or
+
+On Windows:
 ```
-<plugins-dir>/tool-reader/plugins/tool-reader/scripts/visual_verifier.py
+%USERPROFILE%\.claude\plugins\tool-reader\plugins\tool-reader\scripts\visual_verifier.py
 ```
 
 If the script is not found, inform the user to install the tool-reader plugin.

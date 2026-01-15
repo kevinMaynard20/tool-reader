@@ -1,6 +1,6 @@
 {
   "name": "tool-reader",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Visual verification with invisible screenshots - captures actual PNG via headless browser, analyzes with Claude Sonnet",
   "author": "kevinMaynard20",
   "commands": [

@@ -10,7 +10,7 @@
     {
       "name": "tool-reader",
       "description": "Automatic visual verification at phase boundaries. Captures actual PNG screenshots invisibly (headless browser, no popup). Sends to Claude Sonnet for analysis. Never curls HTML - always real screenshots.",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "author": {
         "name": "Kevin Maynard",
         "email": "kevinmaynard20@users.noreply.github.com"

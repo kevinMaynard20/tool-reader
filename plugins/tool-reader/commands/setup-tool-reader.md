@@ -36,7 +36,7 @@ When setting up a project, add this to CLAUDE.md:
 tool-reader: enabled
 tool-reader-adapter: {adapter}
 tool-reader-target: {target}
-visual-verifier-script: {plugins-dir}/tool-reader/plugins/tool-reader/scripts/visual_verifier.py
+visual-verifier-script: ~/.claude/plugins/tool-reader/plugins/tool-reader/scripts/visual_verifier.py
 
 ---
 
@@ -134,7 +134,7 @@ Visual verification will run AUTOMATICALLY:
 - When all items are done
 - Using actual PNG screenshots analyzed by Sonnet
 
-Script: <plugins-dir>/tool-reader/plugins/tool-reader/scripts/visual_verifier.py
+Script: ~/.claude/plugins/tool-reader/plugins/tool-reader/scripts/visual_verifier.py
 ```
 
 ## Notes
