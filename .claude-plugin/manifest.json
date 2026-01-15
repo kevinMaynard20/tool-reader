@@ -1,7 +1,7 @@
 {
   "name": "tool-reader",
-  "version": "2.0.4",
-  "description": "Visual verification with invisible screenshots - captures actual PNG via headless browser, analyzes with Claude Sonnet",
+  "version": "2.0.5",
+  "description": "Visual verification with invisible screenshots - captures PNG via headless browser (web), hidden desktop (TUI), or PrintWindow (GUI). Integrates with existing playwright/pytest tools.",
   "author": "kevinMaynard20",
   "commands": [
     "list-tools",
