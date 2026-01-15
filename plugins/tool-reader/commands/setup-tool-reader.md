@@ -345,6 +345,125 @@ visual-verifier-script: ~/.claude/plugins/tool-reader/plugins/tool-reader/script
 
 ---
 
+## GUIs and Webpages
+
+### Detected Applications
+<!-- Auto-populated by setup command based on project type -->
+- **Web Apps**: {detected_web_apps}
+- **GUI Apps**: {detected_gui_apps}
+- **TUI Apps**: {detected_tui_apps}
+
+### Registered Targets
+<!-- URLs and window targets for visual verification -->
+| Name | Type | Target | Status |
+|------|------|--------|--------|
+| {app_name} | webapp | {url} | {running/stopped} |
+| {app_name} | gui | window:{title} | {running/stopped} |
+| {app_name} | tui | {command} | {running/stopped} |
+
+### Adding Custom Targets
+```markdown
+<!-- Add to this section to register additional verification targets -->
+- webapp: http://localhost:8080 (admin-panel)
+- gui: window:MyDesktopApp
+- tui: python -m my_tui_app
+```
+
+### Capture Requirements: Invisible & Non-Invasive
+
+**CRITICAL: All capture and verification operations MUST be completely invisible and have ZERO impact on the user's computer operation.**
+
+The user should be able to continue working normally - typing, clicking, using applications - without any awareness that verification is occurring in the background.
+
+| App Type | Capture Method | Visibility | User Impact |
+|----------|---------------|------------|-------------|
+| Web Apps | Headless browser | INVISIBLE | None - no browser window appears |
+| GUI Apps | PrintWindow API | INVISIBLE | None - no focus steal, works on minimized windows |
+| TUI Apps | Hidden desktop | INVISIBLE | None - runs on separate invisible desktop |
+
+**STRICT RULES - Zero System Impact:**
+
+1. **No Visible Windows**: Capture operations must NEVER spawn visible windows on the user's desktop
+2. **No Focus Stealing**: Must NEVER steal focus from the user's active application
+3. **No Input Interruption**: Must NEVER intercept, block, or queue user keyboard/mouse input
+4. **No Desktop Clutter**: Hidden desktops must be cleaned up immediately after capture
+5. **No Foreground Popups**: All dialogs, prompts, or windows must remain hidden/background
+6. **No Cursor Movement**: Must NEVER move or affect the user's mouse cursor position
+7. **No Clipboard Access**: Must NEVER read from or write to the system clipboard during capture
+8. **No Audio/Visual Alerts**: Must NEVER produce sounds, notifications, or screen flashes
+9. **No Process Priority Changes**: Must NOT elevate process priority or starve other applications
+10. **No Network Throttling**: Capture operations must not saturate bandwidth affecting user's work
+
+**Implementation Guidelines:**
+
+- **Web Apps**: Use `headless: true` mode in Playwright/Puppeteer - browser runs entirely in memory with no visible UI
+- **GUI Apps**: Use `PrintWindow` API which captures window content without bringing it to foreground or affecting window state
+- **TUI Apps**: Create temporary hidden Windows desktop (`CreateDesktop`), run terminal there, capture, destroy desktop - completely isolated from user's session
+
+**Resource Constraints:**
+- Run capture processes at **below-normal priority** to avoid competing with user applications
+- Limit memory usage to prevent system slowdown
+- Clean up all temporary files/desktops immediately after capture
+
+**If Zero-Impact Cannot Be Guaranteed:**
+- STOP the operation immediately
+- Notify the user that capture would impact system operation
+- Explain specifically what impact would occur
+- Ask for explicit permission before proceeding
+- NEVER proceed automatically with an invasive capture
+
+### Test Code Isolation
+
+**CRITICAL: All test code for visual verification MUST be isolated from the project's working code.**
+
+All generated test scripts, capture utilities, and verification code belong in:
+```
+.tool-reader/
+└── .tests/
+    ├── captures/          # Screenshot outputs
+    ├── scripts/           # Generated test scripts
+    ├── fixtures/          # Test data and fixtures
+    └── results/           # Verification results and logs
+```
+
+**STRICT RULES - Code Isolation:**
+
+1. **Never modify project source code** to add testing hooks or instrumentation
+2. **Never add test files** to the project's existing test directories (e.g., `tests/`, `__tests__/`, `spec/`)
+3. **Never modify `package.json`**, `pyproject.toml`, or other project configs for tool-reader tests
+4. **Never install dependencies globally** or into the project's node_modules/venv for testing
+5. **All tool-reader test artifacts** go in `.tool-reader/.tests/` - nowhere else
+
+**Directory Structure:**
+```
+.tool-reader/
+├── .tests/
+│   ├── captures/              # PNG screenshots from verification runs
+│   │   └── {timestamp}_{target}.png
+│   ├── scripts/               # Auto-generated test/capture scripts
+│   │   ├── capture_webapp.py
+│   │   ├── capture_gui.py
+│   │   └── capture_tui.py
+│   ├── fixtures/              # Mock data, test inputs
+│   └── results/               # JSON/MD verification reports
+│       └── {timestamp}_report.json
+├── config.json                # Tool-reader configuration
+└── adapters/                  # Custom adapter overrides (if any)
+```
+
+**When Project Code Modification IS Required:**
+- Only modify project code if explicitly requested by the user
+- Ask for permission first, explaining exactly what will change
+- Prefer creating wrapper scripts in `.tool-reader/.tests/` that import/call project code
+- Document any necessary project modifications in `.tool-reader/MODIFICATIONS.md`
+
+**Cleanup:**
+- `.tool-reader/.tests/captures/` can be cleared between sessions
+- Old results in `.tool-reader/.tests/results/` should be rotated (keep last 10)
+- Generated scripts can be regenerated - safe to delete
+
+---
+
 ## Testing & Interaction Tools
 
 ### Detected Tools

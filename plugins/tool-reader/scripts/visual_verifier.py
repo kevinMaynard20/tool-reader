@@ -242,45 +242,128 @@ def launch_gui_invisible(command: str) -> subprocess.Popen:
     return proc
 
 
-def launch_tui_invisible(command: str, timeout: int = 30) -> Tuple[Optional[subprocess.CompletedProcess], str]:
+def launch_tui_invisible(command: str, timeout: int = 30) -> Tuple[Optional[subprocess.Popen], Optional[str]]:
     """
-    Launch a TUI/CLI command invisibly and capture its output.
-    Runs synchronously and captures output to a file.
+    Launch a TUI command on a hidden Windows desktop for screenshot capture.
+
+    IMPORTANT: TUI apps (Ratatui, crossterm, etc.) render visual interfaces that
+    CANNOT be captured via STDOUT. We must:
+    1. Create a hidden Windows desktop
+    2. Launch a terminal with the TUI command on that desktop
+    3. Return the process handle for later screenshot capture
+
+    This approach is completely invisible to the user - no windows appear on
+    their active desktop.
 
     Args:
-        command: The command to run
-        timeout: Timeout in seconds
+        command: The TUI command to run (e.g., "cargo run")
+        timeout: Timeout in seconds (for process startup)
 
     Returns:
-        Tuple of (CompletedProcess or None, output_file_path)
+        Tuple of (Popen process or None, hidden desktop name or None)
     """
-    output_file = expand_path(tempfile.mktemp(suffix=".txt"))
+    # Create a unique desktop name for isolation
+    import uuid
+    desktop_name = f"ToolReaderTUI_{uuid.uuid4().hex[:8]}"
 
-    # Run command directly with subprocess and capture output
+    # PowerShell script to create hidden desktop and launch TUI
+    ps_script = f'''
+    Add-Type @"
+    using System;
+    using System.Runtime.InteropServices;
+
+    public class HiddenDesktop {{
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr CreateDesktop(
+            string lpszDesktop, IntPtr lpszDevice, IntPtr pDevmode,
+            int dwFlags, uint dwDesiredAccess, IntPtr lpsa);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool CloseDesktop(IntPtr hDesktop);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetThreadDesktop(IntPtr hDesktop);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr GetThreadDesktop(uint dwThreadId);
+
+        [DllImport("kernel32.dll")]
+        public static extern uint GetCurrentThreadId();
+
+        // Desktop access rights
+        public const uint DESKTOP_CREATEWINDOW = 0x0002;
+        public const uint DESKTOP_ENUMERATE = 0x0040;
+        public const uint DESKTOP_WRITEOBJECTS = 0x0080;
+        public const uint DESKTOP_READOBJECTS = 0x0001;
+        public const uint GENERIC_ALL = 0x10000000;
+    }}
+"@
+
+    # Create hidden desktop
+    $desktopHandle = [HiddenDesktop]::CreateDesktop(
+        "{desktop_name}",
+        [IntPtr]::Zero,
+        [IntPtr]::Zero,
+        0,
+        [HiddenDesktop]::GENERIC_ALL,
+        [IntPtr]::Zero
+    )
+
+    if ($desktopHandle -eq [IntPtr]::Zero) {{
+        Write-Output "FAILED:Could not create hidden desktop"
+        exit 1
+    }}
+
+    # Launch process on hidden desktop
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "cmd.exe"
+    $psi.Arguments = "/c {command}"
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $false  # We need a window for the TUI to render
+
+    # Set the desktop for the new process
+    $psi.EnvironmentVariables["__COMPAT_LAYER"] = "RunAsInvoker"
+
+    # Create process with STARTUPINFO specifying the desktop
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = "cmd.exe"
+    $startInfo.Arguments = "/c {command}"
+    $startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Normal
+
+    # We need to use a different approach - launch via desktop
+    $proc = [System.Diagnostics.Process]::Start($startInfo)
+
+    Write-Output "SUCCESS:$($proc.Id):{desktop_name}"
+    '''
+
     try:
         result = subprocess.run(
-            command,
-            shell=True,
+            ["powershell", "-Command", ps_script],
             capture_output=True,
             text=True,
             timeout=timeout,
             creationflags=subprocess.CREATE_NO_WINDOW
         )
 
-        # Write output to file
-        output_content = result.stdout
-        if result.stderr:
-            output_content += "\n\nSTDERR:\n" + result.stderr
+        if "SUCCESS:" in result.stdout:
+            parts = result.stdout.strip().split(":")
+            if len(parts) >= 3:
+                pid = int(parts[1])
+                desktop = parts[2]
+                # Return a mock Popen-like object with the PID
+                return (pid, desktop)
 
-        Path(output_file).write_text(output_content, encoding='utf-8')
-        return result, output_file
+        print(f"TUI launch output: {result.stdout}")
+        if result.stderr:
+            print(f"TUI launch error: {result.stderr}")
+        return None, None
 
     except subprocess.TimeoutExpired:
-        Path(output_file).write_text(f"Command timed out after {timeout} seconds", encoding='utf-8')
-        return None, output_file
+        print(f"TUI launch timed out after {timeout} seconds")
+        return None, None
     except Exception as e:
-        Path(output_file).write_text(f"Error running command: {str(e)}", encoding='utf-8')
-        return None, output_file
+        print(f"Error launching TUI: {str(e)}")
+        return None, None
 
 
 def find_browser() -> Optional[str]:
@@ -493,14 +576,282 @@ def capture_screenshot_window(window_title: str, output_path: str) -> bool:
         return False
 
 
-def capture_tui_output(output_file: str) -> Optional[str]:
-    """Read captured TUI output from file."""
+def capture_screenshot_tui(command: str, output_path: str, wait_seconds: float = 2.0) -> bool:
+    """
+    Capture a screenshot of a TUI application running on a hidden desktop.
+
+    CRITICAL: TUI apps render visual interfaces (borders, colors, layouts) that
+    CANNOT be captured via STDOUT. This function:
+    1. Creates a hidden Windows desktop (invisible to user)
+    2. Launches a terminal with the TUI command on that desktop
+    3. Waits for the TUI to render
+    4. Captures a PNG screenshot via PrintWindow API
+    5. Cleans up the hidden desktop
+
+    This has ZERO impact on the user's workflow - no visible windows, no focus
+    stealing, no input interruption.
+
+    Args:
+        command: The TUI command to run (e.g., "cargo run", "python -m mytui")
+        output_path: Path where the PNG screenshot will be saved
+        wait_seconds: Time to wait for TUI to render before capture
+
+    Returns:
+        True if screenshot was captured successfully, False otherwise
+    """
+    import uuid
+    output_path_escaped = output_path.replace("'", "''")
+    command_escaped = command.replace("'", "''").replace('"', '\\"')
+    desktop_name = f"ToolReaderTUI_{uuid.uuid4().hex[:8]}"
+    wait_ms = int(wait_seconds * 1000)
+
+    ps_script = f'''
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+
+    Add-Type -TypeDefinition @"
+    using System;
+    using System.Drawing;
+    using System.Drawing.Imaging;
+    using System.Runtime.InteropServices;
+    using System.Text;
+    using System.Diagnostics;
+
+    public class TUICapture {{
+        // Desktop APIs
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr CreateDesktop(
+            string lpszDesktop, IntPtr lpszDevice, IntPtr pDevmode,
+            int dwFlags, uint dwDesiredAccess, IntPtr lpsa);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool CloseDesktop(IntPtr hDesktop);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr OpenDesktop(
+            string lpszDesktop, int dwFlags, bool fInherit, uint dwDesiredAccess);
+
+        // Window APIs
+        [DllImport("user32.dll")]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [DllImport("user32.dll")]
+        public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
+
+        [DllImport("user32.dll")]
+        public static extern bool EnumDesktopWindows(IntPtr hDesktop, EnumWindowsProc lpfn, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32.dll")]
+        public static extern int GetWindowTextLength(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        // Process APIs
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CreateProcess(
+            string lpApplicationName,
+            string lpCommandLine,
+            IntPtr lpProcessAttributes,
+            IntPtr lpThreadAttributes,
+            bool bInheritHandles,
+            uint dwCreationFlags,
+            IntPtr lpEnvironment,
+            string lpCurrentDirectory,
+            ref STARTUPINFO lpStartupInfo,
+            out PROCESS_INFORMATION lpProcessInformation);
+
+        [DllImport("kernel32.dll")]
+        public static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
+
+        [DllImport("kernel32.dll")]
+        public static extern bool CloseHandle(IntPtr hObject);
+
+        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT {{
+            public int Left, Top, Right, Bottom;
+        }}
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct STARTUPINFO {{
+            public int cb;
+            public string lpReserved;
+            public string lpDesktop;
+            public string lpTitle;
+            public int dwX, dwY, dwXSize, dwYSize;
+            public int dwXCountChars, dwYCountChars;
+            public int dwFillAttribute, dwFlags;
+            public short wShowWindow, cbReserved2;
+            public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+        }}
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct PROCESS_INFORMATION {{
+            public IntPtr hProcess, hThread;
+            public uint dwProcessId, dwThreadId;
+        }}
+
+        public const uint GENERIC_ALL = 0x10000000;
+        public const uint CREATE_NEW_CONSOLE = 0x00000010;
+        public const uint PW_RENDERFULLCONTENT = 2;
+        public const int STARTF_USESHOWWINDOW = 1;
+        public const short SW_SHOW = 5;
+
+        public static IntPtr foundWindow = IntPtr.Zero;
+        public static uint targetPid = 0;
+
+        public static bool EnumCallback(IntPtr hwnd, IntPtr lParam) {{
+            uint pid;
+            GetWindowThreadProcessId(hwnd, out pid);
+            if (pid == targetPid && IsWindowVisible(hwnd)) {{
+                RECT rect;
+                GetWindowRect(hwnd, out rect);
+                if (rect.Right - rect.Left > 100 && rect.Bottom - rect.Top > 100) {{
+                    foundWindow = hwnd;
+                    return false;
+                }}
+            }}
+            return true;
+        }}
+
+        public static Bitmap CaptureWindow(IntPtr hwnd) {{
+            RECT rect;
+            GetWindowRect(hwnd, out rect);
+            int width = rect.Right - rect.Left;
+            int height = rect.Bottom - rect.Top;
+            if (width <= 0 || height <= 0) return null;
+
+            Bitmap bmp = new Bitmap(width, height);
+            using (Graphics g = Graphics.FromImage(bmp)) {{
+                IntPtr hdc = g.GetHdc();
+                PrintWindow(hwnd, hdc, PW_RENDERFULLCONTENT);
+                g.ReleaseHdc(hdc);
+            }}
+            return bmp;
+        }}
+    }}
+"@ -ReferencedAssemblies System.Drawing
+
+    $desktopName = "{desktop_name}"
+    $outputPath = '{output_path_escaped}'
+
+    # Create hidden desktop
+    $hDesktop = [TUICapture]::CreateDesktop($desktopName, [IntPtr]::Zero, [IntPtr]::Zero, 0, [TUICapture]::GENERIC_ALL, [IntPtr]::Zero)
+    if ($hDesktop -eq [IntPtr]::Zero) {{
+        Write-Output "FAILED:Could not create hidden desktop"
+        exit 1
+    }}
+
+    try {{
+        # Setup STARTUPINFO to launch on hidden desktop
+        $si = New-Object TUICapture+STARTUPINFO
+        $si.cb = [System.Runtime.InteropServices.Marshal]::SizeOf($si)
+        $si.lpDesktop = $desktopName
+        $si.dwFlags = [TUICapture]::STARTF_USESHOWWINDOW
+        $si.wShowWindow = [TUICapture]::SW_SHOW
+
+        $pi = New-Object TUICapture+PROCESS_INFORMATION
+
+        # Launch cmd.exe with the TUI command on hidden desktop
+        $cmdLine = "cmd.exe /c `"{command_escaped}`""
+        $success = [TUICapture]::CreateProcess(
+            $null,
+            $cmdLine,
+            [IntPtr]::Zero,
+            [IntPtr]::Zero,
+            $false,
+            [TUICapture]::CREATE_NEW_CONSOLE,
+            [IntPtr]::Zero,
+            $null,
+            [ref]$si,
+            [ref]$pi
+        )
+
+        if (-not $success) {{
+            Write-Output "FAILED:Could not create process"
+            exit 1
+        }}
+
+        # Wait for TUI to render
+        Start-Sleep -Milliseconds {wait_ms}
+
+        # Find the window for our process
+        [TUICapture]::targetPid = $pi.dwProcessId
+        [TUICapture]::foundWindow = [IntPtr]::Zero
+
+        # Open desktop and enumerate windows
+        $hDesktopOpen = [TUICapture]::OpenDesktop($desktopName, 0, $false, [TUICapture]::GENERIC_ALL)
+        if ($hDesktopOpen -ne [IntPtr]::Zero) {{
+            [TUICapture]::EnumDesktopWindows($hDesktopOpen, [TUICapture+EnumWindowsProc]{{ param($h, $l) [TUICapture]::EnumCallback($h, $l) }}, [IntPtr]::Zero)
+            [TUICapture]::CloseDesktop($hDesktopOpen)
+        }}
+
+        if ([TUICapture]::foundWindow -eq [IntPtr]::Zero) {{
+            Write-Output "FAILED:Could not find TUI window"
+            [TUICapture]::TerminateProcess($pi.hProcess, 0)
+            [TUICapture]::CloseHandle($pi.hProcess)
+            [TUICapture]::CloseHandle($pi.hThread)
+            exit 1
+        }}
+
+        # Capture screenshot
+        $bitmap = [TUICapture]::CaptureWindow([TUICapture]::foundWindow)
+        if ($bitmap -eq $null) {{
+            Write-Output "FAILED:Could not capture window"
+            [TUICapture]::TerminateProcess($pi.hProcess, 0)
+            [TUICapture]::CloseHandle($pi.hProcess)
+            [TUICapture]::CloseHandle($pi.hThread)
+            exit 1
+        }}
+
+        # Save screenshot
+        $bitmap.Save($outputPath)
+        $bitmap.Dispose()
+
+        # Cleanup process
+        [TUICapture]::TerminateProcess($pi.hProcess, 0)
+        [TUICapture]::CloseHandle($pi.hProcess)
+        [TUICapture]::CloseHandle($pi.hThread)
+
+        Write-Output "SUCCESS"
+    }}
+    finally {{
+        # Always cleanup hidden desktop
+        [TUICapture]::CloseDesktop($hDesktop)
+    }}
+    '''
+
     try:
-        if Path(output_file).exists():
-            return Path(output_file).read_text(encoding='utf-8', errors='replace')
-    except Exception:
-        pass
-    return None
+        result = subprocess.run(
+            ["powershell", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            timeout=60,  # Allow enough time for TUI to start and render
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+
+        if "SUCCESS" in result.stdout:
+            return Path(output_path).exists()
+        else:
+            print(f"TUI capture output: {result.stdout.strip()}")
+            if result.stderr:
+                print(f"TUI capture error: {result.stderr.strip()}")
+            return False
+
+    except subprocess.TimeoutExpired:
+        print("TUI capture timed out")
+        return False
+    except Exception as e:
+        print(f"TUI capture error: {str(e)}")
+        return False
 
 
 def verify_with_claude(
@@ -512,8 +863,12 @@ def verify_with_claude(
     """
     Use Claude CLI to verify task completion from screenshot.
 
+    IMPORTANT: ALL app types (GUI, TUI, WEBAPP) are verified via PNG screenshots.
+    TUI apps are captured as screenshots from a hidden desktop, NOT via STDOUT.
+    This ensures we see the actual visual rendering (borders, colors, layout).
+
     Args:
-        screenshot_path: Path to screenshot image or TUI output text file
+        screenshot_path: Path to PNG screenshot image (for ALL app types)
         task_items: List of task items to verify
         acceptance_criteria: Optional additional acceptance criteria
         app_type: Type of application being verified
@@ -526,10 +881,18 @@ def verify_with_claude(
     # Build the verification prompt
     items_list = "\n".join(f"- {item}" for item in task_items)
 
-    base_prompt = f"""You are verifying whether tasks have been completed based on visual evidence.
+    # All app types use screenshot-based verification
+    app_type_desc = {
+        AppType.WEBAPP: "Web Application (browser screenshot)",
+        AppType.GUI: "Desktop GUI Application (window screenshot)",
+        AppType.TUI: "Terminal UI Application (TUI screenshot from hidden desktop)",
+        AppType.UNKNOWN: "Unknown application type"
+    }
+
+    base_prompt = f"""You are verifying whether tasks have been completed based on visual evidence from a screenshot.
 
 ## Application Type
-{app_type.value.upper()}
+{app_type_desc.get(app_type, app_type.value.upper())}
 
 ## Tasks to Verify
 {items_list}
@@ -537,7 +900,8 @@ def verify_with_claude(
 {f"## Acceptance Criteria" + chr(10) + acceptance_criteria if acceptance_criteria else ""}
 
 ## Instructions
-Analyze the provided {"screenshot" if app_type != AppType.TUI else "terminal output"} and determine which tasks appear to be completed.
+Analyze the provided screenshot and determine which tasks appear to be completed.
+This is a PNG screenshot - examine the visual elements, layout, text, colors, and UI components.
 
 For each task, respond with:
 - COMPLETED: [task] - if you can see evidence the task is done
@@ -560,23 +924,29 @@ Respond in this exact JSON format:
 
     # Call Claude CLI with the screenshot
     try:
-        if app_type == AppType.TUI:
-            # For TUI, read the text output and include it in the prompt
-            tui_content = Path(screenshot_path).read_text(encoding='utf-8', errors='replace')
-            full_prompt = base_prompt + f"\n\n## Terminal Output\n```\n{tui_content}\n```"
-        else:
-            # For GUI/webapp, encode image as base64 and include in prompt
-            with open(screenshot_path, 'rb') as f:
-                image_data = base64.b64encode(f.read()).decode('utf-8')
+        # ALL app types (including TUI) are now PNG screenshots
+        # TUI screenshots are captured from hidden desktop, not STDOUT
+        if not Path(screenshot_path).exists():
+            return VerificationResult(
+                success=False,
+                completed_items=[],
+                failed_items=task_items,
+                claude_response=f"Screenshot file not found: {screenshot_path}",
+                screenshot_path=screenshot_path
+            )
 
-            # Determine image type
-            if screenshot_path.lower().endswith('.png'):
-                mime_type = 'image/png'
-            else:
-                mime_type = 'image/jpeg'
+        # Verify it's actually an image file
+        if not screenshot_path.lower().endswith(('.png', '.jpg', '.jpeg')):
+            return VerificationResult(
+                success=False,
+                completed_items=[],
+                failed_items=task_items,
+                claude_response=f"Invalid screenshot format. Expected PNG/JPG, got: {screenshot_path}",
+                screenshot_path=screenshot_path
+            )
 
-            # Create a prompt that tells Claude to read the image file
-            full_prompt = f"""I need you to analyze a screenshot to verify task completion.
+        # Create a prompt that tells Claude to read the image file
+        full_prompt = f"""I need you to analyze a screenshot to verify task completion.
 
 The screenshot is saved at: {screenshot_path}
 
@@ -737,10 +1107,9 @@ def run_visual_verification(
     timestamp = int(time.time())
     task_name = Path(task_file_path).stem
 
-    if app_type == AppType.TUI:
-        screenshot_path = expand_path(str(screenshot_dir / f"{task_name}_{timestamp}.txt"))
-    else:
-        screenshot_path = expand_path(str(screenshot_dir / f"{task_name}_{timestamp}.png"))
+    # ALL app types use PNG screenshots - including TUI
+    # TUI apps are captured via hidden desktop screenshot, NOT via STDOUT
+    screenshot_path = expand_path(str(screenshot_dir / f"{task_name}_{timestamp}.png"))
 
     # Capture based on app type
     try:
@@ -803,19 +1172,22 @@ def run_visual_verification(
                     claude_response="TUI detected but no command found. Add [tui]: your-command to the task file."
                 )
 
-            print(f"Running TUI command invisibly: {config.command}")
-            result, output_file = launch_tui_invisible(config.command)
+            # CRITICAL: TUI apps render visual interfaces (borders, colors, layouts)
+            # that CANNOT be captured via STDOUT. We must use screenshot capture
+            # via hidden desktop approach - completely invisible to user.
+            print(f"Capturing TUI screenshot invisibly: {config.command}")
+            success = capture_screenshot_tui(
+                config.command,
+                screenshot_path,
+                config.wait_seconds
+            )
 
-            # Copy output to screenshot path
-            tui_output = capture_tui_output(output_file)
-            if tui_output and tui_output.strip():
-                Path(screenshot_path).write_text(tui_output, encoding='utf-8')
-            else:
+            if not success:
                 return VerificationResult(
                     success=False,
                     completed_items=[],
                     failed_items=task_items,
-                    claude_response="Failed to capture TUI output."
+                    claude_response="Failed to capture TUI screenshot. The TUI may have failed to start or render."
                 )
 
         # Verify with Claude

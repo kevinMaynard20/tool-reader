@@ -139,8 +139,9 @@ If you cannot determine a fix, respond with:
 """
 
         try:
+            # Use Sonnet model for image analysis (analyzing screenshots for issues)
             result = subprocess.run(
-                ["claude", "-p", prompt, "--output-format", "text"],
+                ["claude", "-p", prompt, "--output-format", "text", "--model", "sonnet"],
                 capture_output=True,
                 text=True,
                 timeout=120,

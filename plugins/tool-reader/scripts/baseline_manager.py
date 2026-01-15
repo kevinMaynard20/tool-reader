@@ -317,8 +317,9 @@ Respond in this JSON format:
 """
 
         try:
+            # Use Sonnet model for image analysis (comparing screenshots)
             result = subprocess.run(
-                ["claude", "-p", prompt, "--output-format", "text"],
+                ["claude", "-p", prompt, "--output-format", "text", "--model", "sonnet"],
                 capture_output=True,
                 text=True,
                 timeout=120,
